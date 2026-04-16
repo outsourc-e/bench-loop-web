@@ -32,6 +32,43 @@ function formatGb(gb?: number | null): string {
   return `${gb.toFixed(1)} GB`
 }
 
+function estimateCardSizeGb(model: HFModel): number | null {
+  const name = `${model.author}/${model.name}`.toLowerCase()
+  const match = name.match(/(\d+(?:\.\d+)?)b/)
+  if (!match) return null
+  const params = Number(match[1])
+  const normalized = name.replace(/[\s.-]+/g, '_')
+  const quantMap: Array<[string, number]> = [
+    ['q2_k', 2.5], ['iq2_xs', 2.3], ['iq2_s', 2.5], ['iq2_m', 2.7],
+    ['q3_k_s', 3.4], ['q3_k_m', 3.6], ['q3_k_l', 3.9], ['iq3_xs', 3.3], ['iq3_s', 3.4],
+    ['q4_0', 4.5], ['q4_1', 5.0], ['q4_k_s', 4.5], ['q4_k_m', 4.8], ['iq4_xs', 4.3], ['iq4_nl', 4.5],
+    ['q5_0', 5.5], ['q5_1', 6.0], ['q5_k_s', 5.5], ['q5_k_m', 5.7],
+    ['q6_k', 6.6], ['q8_0', 8.5], ['fp16', 16], ['bf16', 16],
+  ]
+  let bpw = 4.8
+  for (const [k, v] of quantMap) {
+    if (normalized.includes(k)) { bpw = v; break }
+  }
+  return params * bpw / 8 + 0.5
+}
+
+type FitLevel = 'fits' | 'tight' | 'no' | 'unknown'
+
+function getCardFit(model: HFModel, usableMemGb: number | null): { level: FitLevel; estGb: number | null } {
+  const estGb = estimateCardSizeGb(model)
+  if (!estGb || !usableMemGb) return { level: 'unknown', estGb }
+  if (estGb <= usableMemGb * 0.7) return { level: 'fits', estGb }
+  if (estGb <= usableMemGb * 0.95) return { level: 'tight', estGb }
+  return { level: 'no', estGb }
+}
+
+const FIT_META: Record<FitLevel, { label: string; color: string }> = {
+  fits: { label: 'Fits your PC', color: 'var(--green)' },
+  tight: { label: 'Tight fit', color: 'var(--yellow)' },
+  no: { label: 'Too large', color: 'var(--red)' },
+  unknown: { label: '', color: 'var(--text-dim)' },
+}
+
 function estimateRequiredVramGb(details: HFModelDetails | null, model: HFModel): number | null {
   const largest = details?.largest_gguf?.size_gb ?? details?.total_gguf_size_gb ?? null
   if (largest) return Math.max(largest * 1.15, 2)
@@ -57,6 +94,7 @@ export default function ModelsTab({ onBenchmark }: Props) {
   const [hfSearch, setHfSearch] = useState('')
   const [hfFormat, setHfFormat] = useState('')
   const [hfPage, setHfPage] = useState(1)
+  const [showOnlyFit, setShowOnlyFit] = useState(false)
   const { data: hfData, loading: hfLoading } = useHFModels(hfSearch, hfFormat, hfPage)
   const FORMAT_OPTIONS = ['', 'gguf', 'mlx', 'gptq', 'awq', 'fp16', 'fp8', 'bf16']
   const activePulls = useActivePulls(1000)
@@ -112,6 +150,12 @@ export default function ModelsTab({ onBenchmark }: Props) {
   const largestFileGb = modalDetails?.largest_gguf?.size_gb ?? modalDetails?.total_gguf_size_gb ?? null
   const fitsVram = requiredVramGb && usableMemGb ? usableMemGb >= requiredVramGb : null
   const fitsDisk = largestFileGb && hardware?.disk_free_gb ? hardware.disk_free_gb >= largestFileGb * 1.2 : null
+
+  const visibleHfModels = (hfData?.models || []).filter((m) => {
+    if (!showOnlyFit) return true
+    const fit = getCardFit(m, usableMemGb)
+    return fit.level === 'fits' || fit.level === 'tight'
+  })
 
   return (
     <div>
@@ -265,15 +309,23 @@ export default function ModelsTab({ onBenchmark }: Props) {
                 {fmt || 'All'}
               </button>
             ))}
-          </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8, color: 'var(--text-dim)', fontSize: '0.75rem' }}>
+            <input type='checkbox' checked={showOnlyFit} onChange={(e) => setShowOnlyFit(e.target.checked)} />
+            Show only models that fit my PC
+          </label>
+        </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8, color: 'var(--text-dim)', fontSize: '0.75rem' }}>
+            <input type='checkbox' checked={showOnlyFit} onChange={(e) => setShowOnlyFit(e.target.checked)} />
+            Show only models that fit my PC
+          </label>
         </div>
 
         {hfLoading && <div style={{ color: 'var(--text-dim)', padding: '16px 0' }}>Loading...</div>}
 
-        {!hfLoading && hfData && hfData.models.length > 0 && (
+        {!hfLoading && hfData && visibleHfModels.length > 0 && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
-              {hfData.models.map((m) => {
+              {visibleHfModels.map((m) => {
                 const hfPullName = `hf.co/${m.id}`
                 const cardPull = findPull(hfPullName)
 
@@ -289,6 +341,17 @@ export default function ModelsTab({ onBenchmark }: Props) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
                         <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{m.author}</div>
+                        {(() => {
+                          const fit = getCardFit(m, usableMemGb)
+                          const meta = FIT_META[fit.level]
+                          if (!meta.label) return null
+                          return (
+                            <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${meta.color}`, color: meta.color, borderRadius: 999, padding: '2px 8px', fontSize: '0.66rem', fontWeight: 600 }}>
+                              <span>{meta.label}</span>
+                              {fit.estGb ? <span style={{ opacity: 0.85 }}>~{fit.estGb.toFixed(1)} GB</span> : null}
+                            </div>
+                          )
+                        })()}
                       </div>
                       <div style={{ display: 'flex', gap: 10, fontSize: '0.7rem', fontFamily: 'var(--mono)', color: 'var(--text-dim)', flexShrink: 0 }}>
                         <span title="Downloads">↓ {formatNumber(m.downloads)}</span>
@@ -339,7 +402,7 @@ export default function ModelsTab({ onBenchmark }: Props) {
           </>
         )}
 
-        {!hfLoading && hfData && hfData.models.length === 0 && (
+        {!hfLoading && hfData && visibleHfModels.length === 0 && (
           <div className="card" style={{ textAlign: 'center', padding: '32px' }}>
             <p style={{ color: 'var(--text-dim)' }}>No models found{hfSearch ? ` for "${hfSearch}"` : ''}{hfFormat ? ` in ${hfFormat.toUpperCase()} format` : ''}.</p>
           </div>
