@@ -6,7 +6,7 @@ import json
 import time
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path as FsPath
 from typing import Any
 
 from fastapi import APIRouter, Query
@@ -19,7 +19,7 @@ from bench_loop.models import BenchmarkRun
 
 router = APIRouter()
 
-RUNS_DIR = Path("~/.bench-loop/runs").expanduser()
+RUNS_DIR = FsPath("~/.bench-loop/runs").expanduser()
 
 # In-memory state for active runs
 _active_runs: dict[str, dict[str, Any]] = {}
@@ -29,17 +29,19 @@ class BenchmarkRequest(BaseModel):
     model: str
     endpoint: str = "http://localhost:11434"
     suites: list[str] = Field(default_factory=lambda: ["speed", "toolcall", "dataextract", "instructfollow", "reasonmath"])
+    harness: str = "raw"
     runs: int = 3
     timeout_sec: float = 300.0
 
 
 @router.post("/benchmark/run")
-async def start_benchmark(req: BenchmarkRequest):
+async def start_benchmark_route(req: BenchmarkRequest):
     run_id = str(uuid.uuid4())[:8]
     config = RunConfig(
         model=req.model,
         provider="ollama",
         endpoint=req.endpoint,
+        harness=req.harness,
         suite_names=req.suites,
         runs=req.runs,
         timeout_sec=req.timeout_sec,
@@ -52,40 +54,39 @@ async def start_benchmark(req: BenchmarkRequest):
             "model": req.model,
             "endpoint": req.endpoint,
             "suites": req.suites,
+            "harness": req.harness,
         },
         "events": [],
         "result": None,
         "error": None,
     }
 
+    def on_progress(event: dict[str, Any]) -> None:
+        _active_runs[run_id]["events"].append(event)
+
     async def _run():
         try:
-            result = await run_benchmark(config)
+            result = await run_benchmark(config, on_progress=on_progress)
             _active_runs[run_id]["status"] = "completed"
             _active_runs[run_id]["result"] = result.to_dict()
-            _active_runs[run_id]["events"].append({
-                "type": "complete",
-                "data": {"overall_score": result.overall_score},
-            })
         except Exception as exc:
             _active_runs[run_id]["status"] = "failed"
             _active_runs[run_id]["error"] = str(exc)
             _active_runs[run_id]["events"].append({
-                "type": "error",
-                "data": {"error": str(exc)},
+                "type": "run_failed",
+                "error": str(exc),
             })
 
-    asyncio.create_task(_run())
-
+    asyncio.sessions_spawn(_run())
     return {"run_id": run_id, "status": "started"}
 
 
 @router.get("/benchmark/stream/{run_id}")
 async def stream_benchmark(run_id: str):
-    """SSE stream for benchmark progress."""
+    """SSE stream for benchmark progress — emits granular task-level events."""
     async def event_generator():
         if run_id not in _active_runs:
-            yield f"data: {json.dumps({'type': 'error', 'data': {'error': 'Run not found'}})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'error': 'Run not found'})}\n\n"
             return
 
         last_idx = 0
@@ -100,11 +101,10 @@ async def stream_benchmark(run_id: str):
                 last_idx += 1
 
             if run_state["status"] in ("completed", "failed"):
-                # Send final state
-                yield f"data: {json.dumps({'type': 'done', 'data': {'status': run_state['status']}})}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'status': run_state['status']})}\n\n"
                 break
 
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -132,6 +132,7 @@ async def list_runs(limit: int = Query(default=50, le=200)):
                 "speed_score": data.get("speed_score", 0),
                 "reliability_score": data.get("reliability_score", 0),
                 "total_runtime_sec": data.get("total_runtime_sec", 0),
+                "harness": data.get("harness", "raw"),
                 "suites": {
                     name: {
                         "score": s.get("score", 0),
@@ -167,7 +168,6 @@ async def get_run(run_id: str):
 
     data = json.loads(run_file.read_text())
 
-    # Also load hardware if available
     hw_file = run_dir / "hardware.json"
     hw_data = None
     if hw_file.exists():
