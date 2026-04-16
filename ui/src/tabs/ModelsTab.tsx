@@ -98,7 +98,8 @@ export default function ModelsTab({ onBenchmark }: Props) {
   }
 
   const isGguf = modalModel?.formats?.some((f) => f.toLowerCase() === 'gguf') ?? false
-  const canPull = hasOllama
+  const hasGgufFiles = (modalDetails?.gguf_files?.length ?? 0) > 0
+  const canPull = hasOllama && (isGguf || hasGgufFiles)
 
   const requiredVramGb = useMemo(() => {
     if (!modalModel) return null
@@ -382,9 +383,11 @@ export default function ModelsTab({ onBenchmark }: Props) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                   <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
                     {canPull ? (
-                      <>Pull target: <span style={{ fontFamily: 'var(--mono)', color: '#fff' }}>{`hf.co/${modalModel.id}`}</span>{!isGguf && <span style={{ color: 'var(--yellow)', marginLeft: 8 }}>⚠ Non-GGUF — Ollama will attempt conversion</span>}</>
-                    ) : (
+                      <>Pull target: <span style={{ fontFamily: 'var(--mono)', color: '#fff' }}>{`hf.co/${modalModel.id}`}</span></>
+                    ) : !hasOllama ? (
                       <>Ollama not detected — <a href="https://ollama.com/download" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>install Ollama</a> to pull directly</>
+                    ) : (
+                      <>Not a GGUF model — Ollama requires GGUF format for local inference</>
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -392,6 +395,19 @@ export default function ModelsTab({ onBenchmark }: Props) {
                     {canPull ? (
                       <button className="btn btn-primary" onClick={confirmPull} disabled={!!pullingModelId || fitsDisk === false}>
                         {pullingModelId ? 'Starting...' : 'Pull model'}
+                      </button>
+                    ) : hasOllama && modalModel ? (
+                      <button
+                        className="btn btn-primary"
+                        onClick={() => {
+                          const base = modalModel.name.replace(/-gguf$/i, '').replace(/-GGUF$/i, '')
+                          setModalModel(null)
+                          setHfSearch(base + ' GGUF')
+                          setHfFormat('gguf')
+                          setHfPage(1)
+                        }}
+                      >
+                        Search GGUF version
                       </button>
                     ) : (
                       <a
