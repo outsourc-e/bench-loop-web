@@ -1,10 +1,23 @@
 """Model listing — auto-detects local providers (Ollama, LM Studio, oMLX, etc.) and supports remote endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Query
+import asyncio
+import time
+
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 import httpx
 
 router = APIRouter()
+
+# Active pull tracking
+_active_pulls: dict[str, dict] = {}
+
+
+class PullRequest(BaseModel):
+    model: str
+    endpoint: str = "http://localhost:11434"
 
 # Common local provider endpoints to probe
 KNOWN_PROVIDERS = [
@@ -234,3 +247,131 @@ async def search_huggingface(
             "pages": 1,
             "error": str(exc),
         }
+
+
+# ── Model Pull ──────────────────────────────────────────────────────
+
+@router.post("/models/pull")
+async def pull_model(body: PullRequest):
+    """Start pulling a model via Ollama. Returns pull_id for tracking."""
+    model_name = body.model.strip()
+    endpoint = body.endpoint.strip().rstrip("/")
+    if not model_name:
+        return {"error": "model name required"}
+
+    pull_id = f"pull-{int(time.time())}-{model_name.replace('/', '-').replace(':', '-')}"
+    _active_pulls[pull_id] = {
+        "pull_id": pull_id,
+        "model": model_name,
+        "endpoint": endpoint,
+        "status": "starting",
+        "progress": 0,
+        "total_bytes": 0,
+        "completed_bytes": 0,
+        "error": None,
+        "done": False,
+        "started_at": time.time(),
+    }
+    asyncio.create_task(_do_pull(pull_id, model_name, endpoint))
+    return {"pull_id": pull_id, "model": model_name}
+
+
+@router.get("/models/pull/active")
+async def active_pulls():
+    """List all active and recent pulls."""
+    cutoff = time.time() - 300
+    to_remove = [k for k, v in _active_pulls.items() if v["done"] and v.get("finished_at", 0) < cutoff]
+    for k in to_remove:
+        del _active_pulls[k]
+    return {"pulls": list(_active_pulls.values())}
+
+
+@router.get("/models/pull/{pull_id}")
+async def pull_status(pull_id: str):
+    """Get status of a specific pull."""
+    info = _active_pulls.get(pull_id)
+    if not info:
+        return {"error": "unknown pull_id"}
+    return info
+
+
+@router.get("/models/pull/{pull_id}/stream")
+async def pull_stream(pull_id: str, request: Request):
+    """SSE stream of pull progress."""
+    info = _active_pulls.get(pull_id)
+    if not info:
+        return {"error": "unknown pull_id"}
+
+    async def event_generator():
+        import json as _json
+        last_progress = -1
+        while True:
+            if await request.is_disconnected():
+                break
+            current = _active_pulls.get(pull_id)
+            if not current:
+                yield f"data: {_json.dumps({'type': 'error', 'error': 'pull disappeared'})}\n\n"
+                break
+            if current["progress"] != last_progress or current["done"]:
+                last_progress = current["progress"]
+                yield f"data: {_json.dumps(current)}\n\n"
+            if current["done"]:
+                break
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+async def _do_pull(pull_id: str, model_name: str, endpoint: str):
+    """Background task: pull model from Ollama and update _active_pulls."""
+    import json as _json
+    info = _active_pulls[pull_id]
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=None, write=10, pool=10)) as client:
+            async with client.stream(
+                "POST",
+                f"{endpoint}/api/pull",
+                json={"name": model_name, "stream": True},
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = _json.loads(line)
+                    except Exception:
+                        continue
+
+                    status = chunk.get("status", "")
+                    info["status"] = status
+
+                    total = chunk.get("total", 0)
+                    completed = chunk.get("completed", 0)
+                    if total and total > 0:
+                        info["total_bytes"] = total
+                        info["completed_bytes"] = completed
+                        info["progress"] = round(100 * completed / total, 1)
+
+                    if status == "success":
+                        info["progress"] = 100
+                        info["done"] = True
+                        info["finished_at"] = time.time()
+                        return
+
+                    if "error" in chunk:
+                        info["error"] = chunk["error"]
+                        info["done"] = True
+                        info["finished_at"] = time.time()
+                        return
+
+        if not info["done"]:
+            info["status"] = "completed"
+            info["progress"] = 100
+            info["done"] = True
+            info["finished_at"] = time.time()
+
+    except Exception as exc:
+        info["error"] = str(exc)
+        info["status"] = "failed"
+        info["done"] = True
+        info["finished_at"] = time.time()

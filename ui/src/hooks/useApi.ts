@@ -69,6 +69,22 @@ export interface HFSearchResult {
   error?: string
 }
 
+export interface PullInfo {
+  pull_id: string
+  model: string
+  endpoint: string
+  status: string
+  progress: number
+  completed?: number
+  total?: number
+  digest?: string
+  error?: string
+  done: boolean
+  started_at: number
+  updated_at: number
+  finished_at?: number
+}
+
 export interface RunSummary {
   id: string
   timestamp: string
@@ -142,6 +158,45 @@ export function useHFModels(query: string, format: string, page: number, limit: 
   return { data, loading, refresh }
 }
 
+export function usePullStatus(pullId?: string, enabled: boolean = true) {
+  const [data, setData] = useState<PullInfo | null>(null)
+  const [loading, setLoading] = useState(Boolean(pullId && enabled))
+
+  const refresh = useCallback(async () => {
+    if (!pullId || !enabled) return
+    try {
+      const resp = await fetch(`/api/models/pull/${encodeURIComponent(pullId)}`)
+      const json = await resp.json()
+      setData(json)
+    } catch {
+      // ignore transient polling failures
+    } finally {
+      setLoading(false)
+    }
+  }, [pullId, enabled])
+
+  useEffect(() => {
+    if (!pullId || !enabled) {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    refresh()
+    const timer = window.setInterval(() => {
+      refresh()
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [pullId, enabled, refresh])
+
+  useEffect(() => {
+    if (!data?.done || !pullId || !enabled) return
+  }, [data, pullId, enabled])
+
+  return { data, loading, refresh }
+}
+
 export function useRuns() {
   const [runs, setRuns] = useState<RunSummary[]>([])
   const [loading, setLoading] = useState(true)
@@ -162,6 +217,15 @@ export function useRuns() {
   return { runs, loading, refresh }
 }
 
+export async function pullModel(params: { model: string; endpoint?: string }): Promise<{ pull_id: string; model: string }> {
+  const resp = await fetch('/api/models/pull', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  return resp.json()
+}
+
 export async function startBenchmark(params: {
   model: string
   endpoint: string
@@ -178,4 +242,46 @@ export async function startBenchmark(params: {
 export async function getRunDetail(runId: string) {
   const resp = await fetch(`/api/benchmark/runs/${runId}`)
   return resp.json()
+}
+
+// ── Model Pull ──────────────────────────────────────────────────────
+
+export interface PullInfo {
+  pull_id: string
+  model: string
+  endpoint: string
+  status: string
+  progress: number
+  total_bytes: number
+  completed_bytes: number
+  error: string | null
+  done: boolean
+}
+
+export async function pullModel(model: string, endpoint: string = 'http://localhost:11434'): Promise<{ pull_id: string; model: string }> {
+  const resp = await fetch('/api/models/pull', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, endpoint }),
+  })
+  return resp.json()
+}
+
+export function useActivePulls(pollMs: number = 1000) {
+  const [pulls, setPulls] = useState<PullInfo[]>([])
+
+  useEffect(() => {
+    let active = true
+    const poll = () => {
+      fetch('/api/models/pull/active')
+        .then((r) => r.json())
+        .then((d) => { if (active) setPulls(d.pulls || []) })
+        .catch(() => {})
+    }
+    poll()
+    const id = setInterval(poll, pollMs)
+    return () => { active = false; clearInterval(id) }
+  }, [pollMs])
+
+  return pulls
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useModels, useHFModels } from '../hooks/useApi'
+import { useModels, useHFModels, useActivePulls, pullModel } from '../hooks/useApi'
+import type { PullInfo } from '../hooks/useApi'
 import HardwareSummary from '../components/HardwareSummary'
 
 interface Props {
@@ -21,12 +22,65 @@ export default function ModelsTab({ onBenchmark }: Props) {
   const [hfPage, setHfPage] = useState(1)
   const { data: hfData, loading: hfLoading } = useHFModels(hfSearch, hfFormat, hfPage)
   const FORMAT_OPTIONS = ['', 'gguf', 'mlx', 'gptq', 'awq', 'fp16', 'fp8', 'bf16']
+  const [pullInput, setPullInput] = useState('')
+  const [pullEndpoint, setPullEndpoint] = useState('http://localhost:11434')
+  const [pulling, setPulling] = useState(false)
+  const activePulls = useActivePulls(1000)
 
   const hasProviders = data && data.providers && data.providers.length > 0
+  const hasOllama = data?.providers?.some((p) => p.type === 'ollama') ?? false
+
+  const handlePull = async (modelName?: string) => {
+    const name = (modelName || pullInput).trim()
+    if (!name) return
+    setPulling(true)
+    try {
+      await pullModel(name, pullEndpoint)
+      if (!modelName) setPullInput('')
+    } catch (e) {
+      console.error('Pull failed:', e)
+    } finally {
+      setPulling(false)
+    }
+  }
 
   return (
     <div>
       <HardwareSummary />
+
+      {/* Quick Pull */}
+      <div className="card" style={{ marginBottom: 20, padding: '16px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: activePulls.length > 0 ? 14 : 0 }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>Pull Model</span>
+          <input
+            type="text"
+            placeholder="e.g. qwen3:8b, llama3.2:3b, phi4-mini..."
+            value={pullInput}
+            onChange={(e) => setPullInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handlePull() }}
+            className="input"
+            style={{ flex: 1, padding: '8px 12px' }}
+            disabled={pulling}
+          />
+          <button
+            className="btn btn-primary"
+            style={{ padding: '8px 20px', whiteSpace: 'nowrap' }}
+            onClick={() => handlePull()}
+            disabled={pulling || !pullInput.trim()}
+          >
+            {pulling ? 'Starting...' : 'Pull'}
+          </button>
+        </div>
+
+        {/* Active Pulls */}
+        {activePulls.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {activePulls.map((pull) => (
+              <PullProgressCard key={pull.pull_id} pull={pull} onBenchmark={onBenchmark} hasOllama={hasOllama} onRefreshModels={refresh} />
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Provider section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -296,6 +350,73 @@ export default function ModelsTab({ onBenchmark }: Props) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
+}
+
+function PullProgressCard({ pull, onBenchmark, hasOllama, onRefreshModels }: { pull: PullInfo; onBenchmark: (model: string, endpoint: string) => void; hasOllama: boolean; onRefreshModels: () => void }) {
+  const isDone = pull.done && !pull.error
+  const isFailed = pull.done && !!pull.error
+  const isActive = !pull.done
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 12,
+      padding: '10px 14px',
+      background: 'var(--bg)',
+      borderRadius: 6,
+      border: `1px solid ${isFailed ? 'var(--red)' : isDone ? 'var(--green)' : 'var(--border)'}`,
+    }}>
+      {/* Status icon */}
+      <span style={{ fontSize: '1rem', flexShrink: 0 }}>
+        {isDone ? '✅' : isFailed ? '❌' : '⏳'}
+      </span>
+
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isActive ? 6 : 0 }}>
+          <span style={{ fontWeight: 600, color: '#fff', fontSize: '0.85rem', fontFamily: 'var(--mono)' }}>
+            {pull.model}
+          </span>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontFamily: 'var(--mono)' }}>
+            {isFailed ? pull.error : isDone ? 'Ready' : pull.status}
+            {isActive && pull.total_bytes > 0 && ` · ${formatBytes(pull.completed_bytes)} / ${formatBytes(pull.total_bytes)}`}
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        {isActive && (
+          <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${pull.progress}%`,
+              background: 'var(--accent)',
+              borderRadius: 2,
+              transition: 'width 0.3s ease',
+            }} />
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      {isDone && (
+        <button
+          className="btn btn-primary"
+          style={{ fontSize: '0.75rem', padding: '5px 14px', flexShrink: 0 }}
+          onClick={() => { onRefreshModels(); onBenchmark(pull.model, pull.endpoint); }}
+        >
+          Benchmark →
+        </button>
+      )}
     </div>
   )
 }
