@@ -97,14 +97,19 @@ export default function ModelsTab({ onBenchmark }: Props) {
     }
   }
 
+  const isGguf = modalModel?.formats?.some((f) => f.toLowerCase() === 'gguf') ?? false
+  const canPull = isGguf && hasOllama
+
   const requiredVramGb = useMemo(() => {
     if (!modalModel) return null
     return estimateRequiredVramGb(modalDetails, modalModel)
   }, [modalDetails, modalModel])
 
   const availableVramGb = hardware?.gpu?.vram_total_mb ? hardware.gpu.vram_total_mb / 1024 : null
+  const availableRamGb = hardware?.memory_total_mb ? hardware.memory_total_mb / 1024 : null
+  const usableMemGb = availableVramGb || availableRamGb
   const largestFileGb = modalDetails?.largest_gguf?.size_gb ?? modalDetails?.total_gguf_size_gb ?? null
-  const fitsVram = requiredVramGb && availableVramGb ? availableVramGb >= requiredVramGb : null
+  const fitsVram = requiredVramGb && usableMemGb ? usableMemGb >= requiredVramGb : null
   const fitsDisk = largestFileGb && hardware?.disk_free_gb ? hardware.disk_free_gb >= largestFileGb * 1.2 : null
 
   return (
@@ -270,7 +275,6 @@ export default function ModelsTab({ onBenchmark }: Props) {
               {hfData.models.map((m) => {
                 const hfPullName = `hf.co/${m.id}`
                 const cardPull = findPull(hfPullName)
-                const canPullWithOllama = hasOllama && m.formats.some((f) => f.toLowerCase() === 'gguf')
 
                 return (
                   <div key={m.id} className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -310,15 +314,9 @@ export default function ModelsTab({ onBenchmark }: Props) {
                         <a href={m.url} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px', textDecoration: 'none' }}>
                           View on HF
                         </a>
-                        {canPullWithOllama ? (
-                          <button className="btn btn-primary" style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px' }} onClick={() => openPullModal(m)}>
-                            Pull ↓
-                          </button>
-                        ) : (
-                          <a href={`https://huggingface.co/${m.id}/tree/main`} target="_blank" rel="noreferrer" className="btn btn-primary" style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px', textDecoration: 'none' }}>
-                            Download ↓
-                          </a>
-                        )}
+                        <button className="btn btn-primary" style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px' }} onClick={() => openPullModal(m)}>
+                          Download ↓
+                        </button>
                       </div>
                     )}
                   </div>
@@ -382,14 +380,33 @@ export default function ModelsTab({ onBenchmark }: Props) {
                 {modalDetails?.error && <div style={{ color: 'var(--yellow)', fontSize: '0.8rem', marginBottom: 16 }}>Couldn’t read full model details, so this is a rough estimate.</div>}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
-                    Pull target: <span style={{ fontFamily: 'var(--mono)', color: '#fff' }}>{`hf.co/${modalModel.id}`}</span>
-                  </div>
+                  {canPull ? (
+                    <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
+                      Pull target: <span style={{ fontFamily: 'var(--mono)', color: '#fff' }}>{`hf.co/${modalModel.id}`}</span>
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
+                      {!hasOllama ? 'Ollama not detected — ' : ''}{!isGguf ? 'Not a GGUF model — ' : ''}manual download required
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn btn-secondary" onClick={() => setModalModel(null)} disabled={!!pullingModelId}>Cancel</button>
-                    <button className="btn btn-primary" onClick={confirmPull} disabled={!!pullingModelId || fitsDisk === false}>
-                      {pullingModelId ? 'Starting...' : 'Pull model'}
-                    </button>
+                    {canPull ? (
+                      <button className="btn btn-primary" onClick={confirmPull} disabled={!!pullingModelId || fitsDisk === false}>
+                        {pullingModelId ? 'Starting...' : 'Pull model'}
+                      </button>
+                    ) : (
+                      <a
+                        href={`https://huggingface.co/${modalModel.id}/tree/main`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-primary"
+                        style={{ textDecoration: 'none' }}
+                        onClick={() => setModalModel(null)}
+                      >
+                        Download from HF ↓
+                      </a>
+                    )}
                   </div>
                 </div>
               </>
