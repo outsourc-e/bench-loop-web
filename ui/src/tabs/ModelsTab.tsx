@@ -98,7 +98,7 @@ export default function ModelsTab({ onBenchmark }: Props) {
   }
 
   const isGguf = modalModel?.formats?.some((f) => f.toLowerCase() === 'gguf') ?? false
-  const canPull = isGguf && hasOllama
+  const canPull = hasOllama
 
   const requiredVramGb = useMemo(() => {
     if (!modalModel) return null
@@ -380,15 +380,13 @@ export default function ModelsTab({ onBenchmark }: Props) {
                 {modalDetails?.error && <div style={{ color: 'var(--yellow)', fontSize: '0.8rem', marginBottom: 16 }}>Couldn’t read full model details, so this is a rough estimate.</div>}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-                  {canPull ? (
-                    <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
-                      Pull target: <span style={{ fontFamily: 'var(--mono)', color: '#fff' }}>{`hf.co/${modalModel.id}`}</span>
-                    </div>
-                  ) : (
-                    <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
-                      {!hasOllama ? 'Ollama not detected — ' : ''}{!isGguf ? 'Not a GGUF model — ' : ''}manual download required
-                    </div>
-                  )}
+                  <div style={{ color: 'var(--text-dim)', fontSize: '0.8rem' }}>
+                    {canPull ? (
+                      <>Pull target: <span style={{ fontFamily: 'var(--mono)', color: '#fff' }}>{`hf.co/${modalModel.id}`}</span>{!isGguf && <span style={{ color: 'var(--yellow)', marginLeft: 8 }}>⚠ Non-GGUF — Ollama will attempt conversion</span>}</>
+                    ) : (
+                      <>Ollama not detected — <a href="https://ollama.com/download" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>install Ollama</a> to pull directly</>
+                    )}
+                  </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn btn-secondary" onClick={() => setModalModel(null)} disabled={!!pullingModelId}>Cancel</button>
                     {canPull ? (
