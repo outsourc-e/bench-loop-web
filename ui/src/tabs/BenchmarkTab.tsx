@@ -68,6 +68,25 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
     setResult(null)
     setError(null)
 
+    // Pre-run health check
+    try {
+      const healthResp = await fetch(endpoint.replace(/\/$/, '') + '/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: selectedModel, messages: [{ role: 'user', content: 'Say ok' }], stream: false }),
+      })
+      if (!healthResp.ok) {
+        const errText = await healthResp.text().catch(() => healthResp.statusText)
+        setError(`Model health check failed (${healthResp.status}): ${errText.slice(0, 200)}`)
+        setRunning(false)
+        return
+      }
+    } catch (e: any) {
+      setError(`Cannot reach model at ${endpoint}: ${e.message || e}`)
+      setRunning(false)
+      return
+    }
+
     try {
       const { run_id } = await startBenchmark({
         model: selectedModel,
