@@ -12,15 +12,27 @@ const ALL_SUITES = [
 
 interface Props {
   preselectedModel: string | null
+  preselectedEndpoint: string | null
   onClearPreselected: () => void
 }
 
-export default function BenchmarkTab({ preselectedModel, onClearPreselected }: Props) {
+export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, onClearPreselected }: Props) {
   const { data: modelsData, loading: modelsLoading } = useModels()
   const { runs, refresh: refreshRuns } = useRuns()
 
+  // Flatten models from all providers
+  const allModels = (modelsData?.providers || []).flatMap((p) =>
+    p.models.map((m) => ({ ...m, providerUrl: p.url, providerLabel: p.label }))
+  )
+
   const [selectedModel, setSelectedModel] = useState('')
   const [endpoint, setEndpoint] = useState('http://localhost:11434')
+
+  // Sync endpoint with selected model's provider
+  useEffect(() => {
+    const match = allModels.find((m) => m.name === selectedModel)
+    if (match) setEndpoint(match.providerUrl)
+  }, [selectedModel, allModels])
   const [selectedSuites, setSelectedSuites] = useState<string[]>(['speed', 'toolcall', 'dataextract', 'instructfollow', 'reasonmath'])
   const [running, setRunning] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
@@ -32,15 +44,16 @@ export default function BenchmarkTab({ preselectedModel, onClearPreselected }: P
   useEffect(() => {
     if (preselectedModel) {
       setSelectedModel(preselectedModel)
+      if (preselectedEndpoint) setEndpoint(preselectedEndpoint)
       onClearPreselected()
     }
-  }, [preselectedModel, onClearPreselected])
+  }, [preselectedModel, preselectedEndpoint, onClearPreselected])
 
   useEffect(() => {
-    if (!selectedModel && modelsData?.models?.length) {
-      setSelectedModel(modelsData.models[0].name)
+    if (!selectedModel && allModels.length > 0) {
+      setSelectedModel(allModels[0].name)
     }
-  }, [modelsData, selectedModel])
+  }, [allModels, selectedModel])
 
   const toggleSuite = (id: string) => {
     setSelectedSuites((prev) =>
@@ -132,8 +145,8 @@ export default function BenchmarkTab({ preselectedModel, onClearPreselected }: P
               disabled={running || modelsLoading}
             >
               {modelsLoading && <option>Loading...</option>}
-              {modelsData?.models?.map((m) => (
-                <option key={m.name} value={m.name}>{m.name}</option>
+              {allModels.map((m) => (
+                <option key={`${m.providerUrl}-${m.name}`} value={m.name}>{m.name}{m.size_gb ? ` (${m.size_gb} GB)` : ''}</option>
               ))}
             </select>
           </div>
