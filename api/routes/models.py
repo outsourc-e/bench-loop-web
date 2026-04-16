@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import json
 import time
 
 from fastapi import APIRouter, Query, Request
@@ -9,15 +11,23 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import httpx
 
+try:
+    from sse_starlette.sse import EventSourceResponse
+except Exception:  # pragma: no cover
+    EventSourceResponse = None
+
 router = APIRouter()
 
 # Active pull tracking
 _active_pulls: dict[str, dict] = {}
+_pull_subscribers: dict[str, list[asyncio.Queue]] = {}
+_PULL_RETENTION_SECONDS = 300
 
 
 class PullRequest(BaseModel):
     model: str
     endpoint: str = "http://localhost:11434"
+
 
 # Common local provider endpoints to probe
 KNOWN_PROVIDERS = [
@@ -79,16 +89,15 @@ async def _probe_provider(provider: dict) -> dict | None:
             models = await _fetch_ollama_models(provider["url"])
         else:
             models = await _fetch_openai_models(provider["url"])
-        if models or True:  # Even 0 models = provider is reachable
-            return {
-                "name": provider["name"],
-                "label": provider["label"],
-                "url": provider["url"],
-                "type": provider["type"],
-                "available": True,
-                "model_count": len(models),
-                "models": models,
-            }
+        return {
+            "name": provider["name"],
+            "label": provider["label"],
+            "url": provider["url"],
+            "type": provider["type"],
+            "available": True,
+            "model_count": len(models),
+            "models": models,
+        }
     except Exception:
         return None
 
@@ -96,11 +105,8 @@ async def _probe_provider(provider: dict) -> dict | None:
 @router.get("/models")
 async def list_models(endpoint: str = Query(default="")):
     """List models. If endpoint specified, query that. Otherwise auto-detect local providers."""
-    
-    # If explicit endpoint given, try it directly
     if endpoint:
         try:
-            # Try Ollama first
             models = await _fetch_ollama_models(endpoint)
             return {
                 "providers": [{
@@ -136,7 +142,6 @@ async def list_models(endpoint: str = Query(default="")):
                     "error": f"Could not connect to {endpoint}: {exc}",
                 }
 
-    # Auto-detect: probe all known providers
     detected = []
     for provider in KNOWN_PROVIDERS:
         result = await _probe_provider(provider)
@@ -159,10 +164,9 @@ async def search_huggingface(
 ):
     """Search HuggingFace for trending/popular models with filtering and pagination."""
     try:
-        # Fetch more than needed so we can filter client-side
         fetch_limit = limit * 3 if format_filter else limit
         offset = (page - 1) * limit
-        
+
         async with httpx.AsyncClient(timeout=10) as client:
             params = {
                 "sort": "trendingScore" if not query else "downloads",
@@ -174,8 +178,8 @@ async def search_huggingface(
                 params["search"] = query
             resp = await client.get("https://huggingface.co/api/models", params=params)
             resp.raise_for_status()
-        
-        FORMAT_KEYWORDS = {
+
+        format_keywords = {
             "gguf": ["gguf"],
             "mlx": ["mlx"],
             "gptq": ["gptq"],
@@ -184,7 +188,7 @@ async def search_huggingface(
             "fp8": ["fp8"],
             "bf16": ["bf16", "bfloat16"],
         }
-        
+
         models = []
         for m in resp.json():
             model_id = m.get("id", "")
@@ -196,20 +200,18 @@ async def search_huggingface(
             pipeline_tag = m.get("pipeline_tag", "")
             author = model_id.split("/")[0]
             model_name = model_id.split("/")[-1]
-            
-            # Detect formats from tags + model name
+
             detected_formats = []
             searchable = " ".join(tags + [model_name]).lower()
-            for fmt, keywords in FORMAT_KEYWORDS.items():
+            for fmt, keywords in format_keywords.items():
                 if any(kw in searchable for kw in keywords):
                     detected_formats.append(fmt)
             if not detected_formats:
                 detected_formats.append("safetensors")
-            
-            # Apply format filter
+
             if format_filter and format_filter.lower() not in [f.lower() for f in detected_formats]:
                 continue
-            
+
             models.append({
                 "id": model_id,
                 "author": author,
@@ -223,11 +225,10 @@ async def search_huggingface(
                 "url": f"https://huggingface.co/{model_id}",
                 "created_at": m.get("createdAt", ""),
             })
-        
-        # Paginate
+
         total = len(models)
         page_models = models[offset:offset + limit]
-        
+
         return {
             "query": query,
             "format_filter": format_filter,
@@ -249,7 +250,93 @@ async def search_huggingface(
         }
 
 
-# ── Model Pull ──────────────────────────────────────────────────────
+def _is_pull_done(info: dict | None) -> bool:
+    return bool(info and info.get("done"))
+
+
+async def _broadcast_pull_update(pull_id: str) -> None:
+    info = _active_pulls.get(pull_id)
+    if not info:
+        return
+    for queue in list(_pull_subscribers.get(pull_id, [])):
+        with contextlib.suppress(asyncio.QueueFull):
+            queue.put_nowait(dict(info))
+
+
+async def _cleanup_pull_after_delay(pull_id: str, delay: int = _PULL_RETENTION_SECONDS) -> None:
+    await asyncio.sleep(delay)
+    _active_pulls.pop(pull_id, None)
+    _pull_subscribers.pop(pull_id, None)
+
+
+async def _do_pull(pull_id: str, model_name: str, endpoint: str):
+    """Background task: pull model from Ollama and update _active_pulls."""
+    info = _active_pulls[pull_id]
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=None, write=30, pool=30)) as client:
+            async with client.stream(
+                "POST",
+                f"{endpoint.rstrip('/')}/api/pull",
+                json={"name": model_name, "stream": True},
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    status = chunk.get("status") or info.get("status") or "pulling"
+                    completed = chunk.get("completed")
+                    total = chunk.get("total")
+                    progress = info.get("progress", 0)
+
+                    if isinstance(completed, (int, float)) and isinstance(total, (int, float)) and total > 0:
+                        progress = round((completed / total) * 100, 1)
+                    elif status == "success":
+                        progress = 100
+
+                    info.update({
+                        "status": status,
+                        "progress": max(0, min(progress, 100)),
+                        "completed": completed,
+                        "total": total,
+                        "digest": chunk.get("digest"),
+                        "error": chunk.get("error"),
+                        "done": status == "success" or bool(chunk.get("error")),
+                        "updated_at": time.time(),
+                    })
+
+                    if info["done"]:
+                        info["finished_at"] = time.time()
+                        if chunk.get("error"):
+                            info["status"] = "error"
+
+                    await _broadcast_pull_update(pull_id)
+
+        if not info.get("done"):
+            info.update({
+                "status": "success",
+                "progress": 100,
+                "done": True,
+                "updated_at": time.time(),
+                "finished_at": time.time(),
+            })
+            await _broadcast_pull_update(pull_id)
+    except Exception as exc:
+        info.update({
+            "status": "error",
+            "error": str(exc),
+            "done": True,
+            "updated_at": time.time(),
+            "finished_at": time.time(),
+        })
+        await _broadcast_pull_update(pull_id)
+    finally:
+        asyncio.create_task(_cleanup_pull_after_delay(pull_id))
+
 
 @router.post("/models/pull")
 async def pull_model(body: PullRequest):
@@ -266,11 +353,13 @@ async def pull_model(body: PullRequest):
         "endpoint": endpoint,
         "status": "starting",
         "progress": 0,
-        "total_bytes": 0,
-        "completed_bytes": 0,
+        "completed": 0,
+        "total": 0,
+        "digest": None,
         "error": None,
         "done": False,
         "started_at": time.time(),
+        "updated_at": time.time(),
     }
     asyncio.create_task(_do_pull(pull_id, model_name, endpoint))
     return {"pull_id": pull_id, "model": model_name}
@@ -279,11 +368,16 @@ async def pull_model(body: PullRequest):
 @router.get("/models/pull/active")
 async def active_pulls():
     """List all active and recent pulls."""
-    cutoff = time.time() - 300
-    to_remove = [k for k, v in _active_pulls.items() if v["done"] and v.get("finished_at", 0) < cutoff]
-    for k in to_remove:
-        del _active_pulls[k]
-    return {"pulls": list(_active_pulls.values())}
+    now = time.time()
+    stale = [
+        key for key, value in _active_pulls.items()
+        if value.get("done") and value.get("finished_at") and now - value["finished_at"] > _PULL_RETENTION_SECONDS
+    ]
+    for key in stale:
+        _active_pulls.pop(key, None)
+        _pull_subscribers.pop(key, None)
+    pulls = sorted(_active_pulls.values(), key=lambda item: item.get("started_at", 0), reverse=True)
+    return {"pulls": pulls}
 
 
 @router.get("/models/pull/{pull_id}")
@@ -295,83 +389,101 @@ async def pull_status(pull_id: str):
     return info
 
 
-@router.get("/models/pull/{pull_id}/stream")
-async def pull_stream(pull_id: str, request: Request):
-    """SSE stream of pull progress."""
+async def _sse_event_generator(pull_id: str, request: Request):
     info = _active_pulls.get(pull_id)
     if not info:
-        return {"error": "unknown pull_id"}
+        yield {"event": "error", "data": json.dumps({"error": "unknown pull_id"})}
+        return
 
-    async def event_generator():
-        import json as _json
-        last_progress = -1
+    queue: asyncio.Queue = asyncio.Queue(maxsize=20)
+    _pull_subscribers.setdefault(pull_id, []).append(queue)
+    try:
+        yield {"event": "pull", "data": json.dumps(dict(info))}
         while True:
             if await request.is_disconnected():
                 break
-            current = _active_pulls.get(pull_id)
-            if not current:
-                yield f"data: {_json.dumps({'type': 'error', 'error': 'pull disappeared'})}\n\n"
+            if _is_pull_done(_active_pulls.get(pull_id)) and queue.empty():
+                final_info = _active_pulls.get(pull_id)
+                if final_info:
+                    yield {"event": "pull", "data": json.dumps(dict(final_info))}
                 break
-            if current["progress"] != last_progress or current["done"]:
-                last_progress = current["progress"]
-                yield f"data: {_json.dumps(current)}\n\n"
-            if current["done"]:
-                break
-            await asyncio.sleep(0.5)
+            try:
+                update = await asyncio.wait_for(queue.get(), timeout=15)
+                yield {"event": "pull", "data": json.dumps(update)}
+            except asyncio.TimeoutError:
+                heartbeat = _active_pulls.get(pull_id)
+                if heartbeat:
+                    yield {"event": "ping", "data": json.dumps({"pull_id": pull_id, "status": heartbeat.get("status")})}
+                else:
+                    break
+    finally:
+        subscribers = _pull_subscribers.get(pull_id, [])
+        with contextlib.suppress(ValueError):
+            subscribers.remove(queue)
+        if not subscribers:
+            _pull_subscribers.pop(pull_id, None)
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+@router.get("/models/pull/{pull_id}/stream")
+async def pull_stream(pull_id: str, request: Request):
+    """SSE stream of pull progress."""
+    if pull_id not in _active_pulls:
+        return {"error": "unknown pull_id"}
+
+    if EventSourceResponse:
+        return EventSourceResponse(_sse_event_generator(pull_id, request))
+
+    async def plain_stream():
+        async for event in _sse_event_generator(pull_id, request):
+            yield f"event: {event['event']}\ndata: {event['data']}\n\n"
+
+    return StreamingResponse(plain_stream(), media_type="text/event-stream")
 
 
-async def _do_pull(pull_id: str, model_name: str, endpoint: str):
-    """Background task: pull model from Ollama and update _active_pulls."""
-    import json as _json
-    info = _active_pulls[pull_id]
+@router.get('/models/hf-details')
+async def hf_model_details(repo: str = Query(...)):
+    """Fetch detailed HF repo info including GGUF file sizes for fit checks."""
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=10, read=None, write=10, pool=10)) as client:
-            async with client.stream(
-                "POST",
-                f"{endpoint}/api/pull",
-                json={"name": model_name, "stream": True},
-            ) as resp:
-                resp.raise_for_status()
-                async for line in resp.aiter_lines():
-                    if not line.strip():
-                        continue
-                    try:
-                        chunk = _json.loads(line)
-                    except Exception:
-                        continue
+        async with httpx.AsyncClient(timeout=15) as client:
+            detail_resp = await client.get(f'https://huggingface.co/api/models/{repo}')
+            detail_resp.raise_for_status()
+            tree_resp = await client.get(f'https://huggingface.co/api/models/{repo}/tree/main')
+            tree_resp.raise_for_status()
 
-                    status = chunk.get("status", "")
-                    info["status"] = status
+        detail = detail_resp.json()
+        files = tree_resp.json()
 
-                    total = chunk.get("total", 0)
-                    completed = chunk.get("completed", 0)
-                    if total and total > 0:
-                        info["total_bytes"] = total
-                        info["completed_bytes"] = completed
-                        info["progress"] = round(100 * completed / total, 1)
+        gguf_files = []
+        total_size = 0
+        for f in files:
+            path = f.get('path', '')
+            size = f.get('size') or 0
+            if path.lower().endswith('.gguf'):
+                gguf_files.append({
+                    'path': path,
+                    'size_bytes': size,
+                    'size_gb': round(size / (1024**3), 2) if size else None,
+                })
+                total_size += size
 
-                    if status == "success":
-                        info["progress"] = 100
-                        info["done"] = True
-                        info["finished_at"] = time.time()
-                        return
+        largest = max(gguf_files, key=lambda x: x.get('size_bytes') or 0) if gguf_files else None
 
-                    if "error" in chunk:
-                        info["error"] = chunk["error"]
-                        info["done"] = True
-                        info["finished_at"] = time.time()
-                        return
-
-        if not info["done"]:
-            info["status"] = "completed"
-            info["progress"] = 100
-            info["done"] = True
-            info["finished_at"] = time.time()
-
+        return {
+            'repo': repo,
+            'id': detail.get('id', repo),
+            'downloads': detail.get('downloads', 0),
+            'likes': detail.get('likes', 0),
+            'tags': detail.get('tags', []),
+            'cardData': detail.get('cardData', {}),
+            'gguf_files': gguf_files,
+            'largest_gguf': largest,
+            'total_gguf_size_gb': round(total_size / (1024**3), 2) if total_size else None,
+        }
     except Exception as exc:
-        info["error"] = str(exc)
-        info["status"] = "failed"
-        info["done"] = True
-        info["finished_at"] = time.time()
+        return {
+            'repo': repo,
+            'error': str(exc),
+            'gguf_files': [],
+            'largest_gguf': None,
+            'total_gguf_size_gb': None,
+        }

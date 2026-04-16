@@ -12,6 +12,8 @@ export interface HardwareInfo {
   memory_total_mb: number
   memory_used_mb: number
   memory_available_mb: number
+  disk_total_gb?: number
+  disk_free_gb?: number
   gpu: {
     model: string
     vendor: string
@@ -69,6 +71,19 @@ export interface HFSearchResult {
   error?: string
 }
 
+export interface HFModelDetails {
+  repo: string
+  id: string
+  downloads?: number
+  likes?: number
+  tags?: string[]
+  cardData?: Record<string, any>
+  gguf_files: Array<{ path: string; size_bytes: number; size_gb: number | null }>
+  largest_gguf: { path: string; size_bytes: number; size_gb: number | null } | null
+  total_gguf_size_gb: number | null
+  error?: string
+}
+
 export interface PullInfo {
   pull_id: string
   model: string
@@ -81,7 +96,7 @@ export interface PullInfo {
   error?: string
   done: boolean
   started_at: number
-  updated_at: number
+  updated_at?: number
   finished_at?: number
 }
 
@@ -158,7 +173,7 @@ export function useHFModels(query: string, format: string, page: number, limit: 
   return { data, loading, refresh }
 }
 
-export function usePullStatus(pullId?: string, enabled: boolean = true) {
+export function usePullStatus(pullId?: string, enabled: boolean = true, pollMs: number = 1000) {
   const [data, setData] = useState<PullInfo | null>(null)
   const [loading, setLoading] = useState(Boolean(pullId && enabled))
 
@@ -185,16 +200,39 @@ export function usePullStatus(pullId?: string, enabled: boolean = true) {
     refresh()
     const timer = window.setInterval(() => {
       refresh()
-    }, 1000)
+    }, pollMs)
 
     return () => window.clearInterval(timer)
-  }, [pullId, enabled, refresh])
-
-  useEffect(() => {
-    if (!data?.done || !pullId || !enabled) return
-  }, [data, pullId, enabled])
+  }, [pullId, enabled, pollMs, refresh])
 
   return { data, loading, refresh }
+}
+
+export function useActivePulls(pollMs: number = 1000) {
+  const [pulls, setPulls] = useState<PullInfo[]>([])
+
+  useEffect(() => {
+    let active = true
+
+    const poll = () => {
+      fetch('/api/models/pull/active')
+        .then((r) => r.json())
+        .then((d) => {
+          if (active) setPulls(d.pulls || [])
+        })
+        .catch(() => {})
+    }
+
+    poll()
+    const id = window.setInterval(poll, pollMs)
+
+    return () => {
+      active = false
+      window.clearInterval(id)
+    }
+  }, [pollMs])
+
+  return pulls
 }
 
 export function useRuns() {
@@ -244,44 +282,7 @@ export async function getRunDetail(runId: string) {
   return resp.json()
 }
 
-// ── Model Pull ──────────────────────────────────────────────────────
-
-export interface PullInfo {
-  pull_id: string
-  model: string
-  endpoint: string
-  status: string
-  progress: number
-  total_bytes: number
-  completed_bytes: number
-  error: string | null
-  done: boolean
-}
-
-export async function pullModel(model: string, endpoint: string = 'http://localhost:11434'): Promise<{ pull_id: string; model: string }> {
-  const resp = await fetch('/api/models/pull', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, endpoint }),
-  })
+export async function getHFModelDetails(repo: string): Promise<HFModelDetails> {
+  const resp = await fetch(`/api/models/hf-details?repo=${encodeURIComponent(repo)}`)
   return resp.json()
-}
-
-export function useActivePulls(pollMs: number = 1000) {
-  const [pulls, setPulls] = useState<PullInfo[]>([])
-
-  useEffect(() => {
-    let active = true
-    const poll = () => {
-      fetch('/api/models/pull/active')
-        .then((r) => r.json())
-        .then((d) => { if (active) setPulls(d.pulls || []) })
-        .catch(() => {})
-    }
-    poll()
-    const id = setInterval(poll, pollMs)
-    return () => { active = false; clearInterval(id) }
-  }, [pollMs])
-
-  return pulls
 }
