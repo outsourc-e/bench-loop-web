@@ -44,39 +44,43 @@ export default function ModelsTab({ onBenchmark }: Props) {
     }
   }
 
+  const findPull = (modelName: string) => activePulls.find((p) => p.model === modelName)
+
   return (
     <div>
       <HardwareSummary />
 
-      {/* Quick Pull */}
+      {/* Pull helper + active pulls */}
       <div className="card" style={{ marginBottom: 20, padding: '16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: activePulls.length > 0 ? 14 : 0 }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>Pull Model</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: activePulls.length > 0 ? 14 : 0, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>Direct Pull</span>
           <input
             type="text"
-            placeholder="e.g. qwen3:8b, llama3.2:3b, phi4-mini..."
+            placeholder="Exact Ollama name, e.g. qwen3:8b"
             value={pullInput}
             onChange={(e) => setPullInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') handlePull() }}
             className="input"
-            style={{ flex: 1, padding: '8px 12px' }}
+            style={{ flex: 1, padding: '8px 12px', minWidth: 240 }}
             disabled={pulling}
           />
           <button
-            className="btn btn-primary"
+            className="btn btn-secondary"
             style={{ padding: '8px 20px', whiteSpace: 'nowrap' }}
             onClick={() => handlePull()}
             disabled={pulling || !pullInput.trim()}
           >
-            {pulling ? 'Starting...' : 'Pull'}
+            {pulling ? 'Starting...' : 'Pull exact name'}
           </button>
+          <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>
+            For HF models, use the pull button on the model card.
+          </span>
         </div>
 
-        {/* Active Pulls */}
         {activePulls.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {activePulls.map((pull) => (
-              <PullProgressCard key={pull.pull_id} pull={pull} onBenchmark={onBenchmark} hasOllama={hasOllama} onRefreshModels={refresh} />
+              <PullProgressCard key={pull.pull_id} pull={pull} onBenchmark={onBenchmark} onRefreshModels={refresh} />
             ))}
           </div>
         )}
@@ -255,66 +259,88 @@ export default function ModelsTab({ onBenchmark }: Props) {
         {!hfLoading && hfData && hfData.models.length > 0 && (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
-              {hfData.models.map((m) => (
-                <div key={m.id} className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <img
-                      src={m.avatar_url}
-                      alt={m.author}
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                      style={{
-                        width: 32, height: 32, borderRadius: 6, flexShrink: 0,
-                        background: 'var(--bg)', border: '1px solid var(--border)',
-                      }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {m.name}
+              {hfData.models.map((m) => {
+                const hfPullName = `hf.co/${m.id}`
+                const cardPull = findPull(hfPullName)
+                const canPullWithOllama = hasOllama && m.formats.some((f) => f.toLowerCase() === 'gguf')
+
+                return (
+                  <div key={m.id} className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                      <img
+                        src={m.avatar_url}
+                        alt={m.author}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        style={{
+                          width: 32, height: 32, borderRadius: 6, flexShrink: 0,
+                          background: 'var(--bg)', border: '1px solid var(--border)',
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: '#fff', fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.name}
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{m.author}</div>
                       </div>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>{m.author}</div>
+                      <div style={{ display: 'flex', gap: 10, fontSize: '0.7rem', fontFamily: 'var(--mono)', color: 'var(--text-dim)', flexShrink: 0 }}>
+                        <span title="Downloads">↓ {formatNumber(m.downloads)}</span>
+                        <span title="Likes">♥ {formatNumber(m.likes)}</span>
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 10, fontSize: '0.7rem', fontFamily: 'var(--mono)', color: 'var(--text-dim)', flexShrink: 0 }}>
-                      <span title="Downloads">↓ {formatNumber(m.downloads)}</span>
-                      <span title="Likes">♥ {formatNumber(m.likes)}</span>
-                    </div>
-                  </div>
 
-                  {m.formats.length > 0 && (
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                      {m.formats.map((f) => (
-                        <span key={f} style={{
-                          background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4,
-                          padding: '1px 7px', fontSize: '0.6rem', fontFamily: 'var(--mono)',
-                          color: 'var(--text-dim)', textTransform: 'uppercase',
-                        }}>
-                          {f}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                    {m.formats.length > 0 && (
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {m.formats.map((f) => (
+                          <span key={f} style={{
+                            background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4,
+                            padding: '1px 7px', fontSize: '0.6rem', fontFamily: 'var(--mono)',
+                            color: 'var(--text-dim)', textTransform: 'uppercase',
+                          }}>
+                            {f}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                  <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
-                    <a
-                      href={m.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-secondary"
-                      style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px', textDecoration: 'none' }}
-                    >
-                      View on HF
-                    </a>
-                    <a
-                      href={`https://huggingface.co/${m.id}/tree/main`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-primary"
-                      style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px', textDecoration: 'none' }}
-                    >
-                      Download ↓
-                    </a>
+                    {cardPull ? (
+                      <div style={{ marginTop: 'auto' }}>
+                        <PullProgressCard pull={cardPull} onBenchmark={onBenchmark} onRefreshModels={refresh} compact />
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                        <a
+                          href={m.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-secondary"
+                          style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px', textDecoration: 'none' }}
+                        >
+                          View on HF
+                        </a>
+                        {canPullWithOllama ? (
+                          <button
+                            className="btn btn-primary"
+                            style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px' }}
+                            onClick={() => handlePull(hfPullName)}
+                          >
+                            Pull ↓
+                          </button>
+                        ) : (
+                          <a
+                            href={`https://huggingface.co/${m.id}/tree/main`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-primary"
+                            style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', padding: '5px', textDecoration: 'none' }}
+                          >
+                            Download ↓
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Pagination */}
@@ -361,7 +387,7 @@ function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
 }
 
-function PullProgressCard({ pull, onBenchmark, hasOllama, onRefreshModels }: { pull: PullInfo; onBenchmark: (model: string, endpoint: string) => void; hasOllama: boolean; onRefreshModels: () => void }) {
+function PullProgressCard({ pull, onBenchmark, onRefreshModels, compact = false }: { pull: PullInfo; onBenchmark: (model: string, endpoint: string) => void; onRefreshModels: () => void; compact?: boolean }) {
   const isDone = pull.done && !pull.error
   const isFailed = pull.done && !!pull.error
   const isActive = !pull.done
@@ -370,8 +396,8 @@ function PullProgressCard({ pull, onBenchmark, hasOllama, onRefreshModels }: { p
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: 12,
-      padding: '10px 14px',
+      gap: compact ? 8 : 12,
+      padding: compact ? '8px 10px' : '10px 14px',
       background: 'var(--bg)',
       borderRadius: 6,
       border: `1px solid ${isFailed ? 'var(--red)' : isDone ? 'var(--green)' : 'var(--border)'}`,
