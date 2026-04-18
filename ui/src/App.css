@@ -6,7 +6,9 @@
 
 .header {
   border-bottom: 1px solid var(--border);
-  background: var(--bg);
+  background: rgba(10, 13, 11, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -41,7 +43,7 @@
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--accent);
-  color: #fff;
+  color: #0a0d0b;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -64,12 +66,12 @@
 
 .nav-tab:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--accent-soft);
 }
 
 .nav-tab.active {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .main {
@@ -90,6 +92,7 @@
 
 .card:hover {
   border-color: var(--border-hover);
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.08);
 }
 
 .btn {
@@ -173,6 +176,7 @@
 
 .input:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.12);
 }
 
 select.input {
