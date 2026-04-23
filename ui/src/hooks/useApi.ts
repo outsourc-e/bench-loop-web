@@ -92,6 +92,8 @@ export interface PullInfo {
   progress: number
   completed?: number
   total?: number
+  completed_bytes?: number
+  total_bytes?: number
   digest?: string
   error?: string
   done: boolean
@@ -108,10 +110,20 @@ export interface RunSummary {
   quality_score: number
   speed_score: number
   reliability_score: number
+  value_score?: number
   total_runtime_sec: number
   suites: Record<string, { score: number; pass_count: number; task_count: number }>
   provider: string
+  harness?: string
   machine: string
+  gpu?: string
+  gpu_memory_gb?: number
+  cpu?: string
+  system_memory_gb?: number
+  os?: string
+  generation_tok_per_sec?: number
+  prompt_eval_tok_per_sec?: number
+  ttft_ms?: number
 }
 
 export function useHardware() {

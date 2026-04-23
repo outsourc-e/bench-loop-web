@@ -39,18 +39,101 @@ KNOWN_PROVIDERS = [
 ]
 
 
+# Minimum Ollama versions known to support specific architectures / quants.
+# When the connected Ollama is older, BenchLoop surfaces a preflight warning
+# instead of letting the user hit a confusing 500 at run time.
+OLLAMA_MIN_VERSIONS = {
+    # Qwen 3.5 / 3.6 family
+    "qwen35": "0.12.0",
+    "qwen36": "0.12.0",
+    # TQ (ternary) quantizations
+    "tq": "0.12.0",
+    # MXFP4
+    "mxfp4": "0.11.0",
+}
+
+
+def _version_tuple(v: str) -> tuple[int, ...]:
+    cleaned = "".join(c if (c.isdigit() or c == ".") else " " for c in (v or ""))
+    parts = [p for p in cleaned.split() if p]
+    if not parts:
+        return (0,)
+    first = parts[0]
+    try:
+        return tuple(int(x) for x in first.split("."))
+    except ValueError:
+        return (0,)
+
+
+def _classify_model_support(name: str, details: dict) -> dict:
+    """Return a support flag describing which min-version bucket a model needs."""
+    family = (details.get("family") or "").lower()
+    quant = (details.get("quantization_level") or "").lower()
+    fmt = (details.get("format") or "").lower()
+    lname = name.lower()
+
+    required_key = None
+    reason = None
+
+    if "qwen35" in family or "qwen3.5" in lname:
+        required_key = "qwen35"
+        reason = "Qwen 3.5 architecture"
+    elif "qwen36" in family or "qwen3.6" in lname:
+        required_key = "qwen36"
+        reason = "Qwen 3.6 architecture"
+    elif "tq" in quant or "tq" in lname or "-tq" in lname:
+        required_key = "tq"
+        reason = "TQ (ternary) quantization"
+    elif "mxfp4" in quant or "mxfp4" in lname:
+        required_key = "mxfp4"
+        reason = "MXFP4 quantization"
+
+    if not required_key:
+        return {"required_version": None, "reason": None}
+
+    return {
+        "required_version": OLLAMA_MIN_VERSIONS[required_key],
+        "reason": reason,
+    }
+
+
+async def _fetch_ollama_version(endpoint: str) -> str | None:
+    try:
+        async with httpx.AsyncClient(timeout=3) as client:
+            resp = await client.get(f"{endpoint.rstrip('/')}/api/version")
+            if resp.status_code == 200:
+                return resp.json().get("version")
+    except Exception:
+        return None
+    return None
+
+
 async def _fetch_ollama_models(endpoint: str) -> list[dict]:
     """Fetch models from an Ollama-style endpoint."""
     async with httpx.AsyncClient(timeout=5) as client:
         resp = await client.get(f"{endpoint.rstrip('/')}/api/tags")
         resp.raise_for_status()
     raw = resp.json().get("models", [])
+    version = await _fetch_ollama_version(endpoint)
+    installed_tuple = _version_tuple(version) if version else (0,)
     models = []
     for m in raw:
         name = m.get("name", "")
         details = m.get("details", {})
         size_bytes = m.get("size", 0)
         size_gb = round(size_bytes / (1024**3), 1) if size_bytes else None
+        support = _classify_model_support(name, details)
+        required = support["required_version"]
+        supported = True
+        warning = None
+        if required:
+            if installed_tuple < _version_tuple(required):
+                supported = False
+                warning = (
+                    f"Requires Ollama {required}+ ({support['reason']}); "
+                    f"installed is {version or 'unknown'}. Upgrade with "
+                    f"`brew upgrade ollama` then restart `ollama serve`."
+                )
         models.append({
             "name": name,
             "size_gb": size_gb,
@@ -58,6 +141,9 @@ async def _fetch_ollama_models(endpoint: str) -> list[dict]:
             "family": details.get("family", ""),
             "parameter_size": details.get("parameter_size", ""),
             "format": details.get("format", ""),
+            "provider_version": version,
+            "supported": supported,
+            "warning": warning,
         })
     return models
 
@@ -152,6 +238,137 @@ async def list_models(endpoint: str = Query(default="")):
     return {
         "providers": detected,
         "total_models": total,
+    }
+
+
+@router.get("/models/preflight")
+async def preflight_model(
+    endpoint: str = Query(...),
+    model: str = Query(...),
+):
+    """Pre-benchmark diagnostic: can this model actually load on this endpoint?
+
+    Returns structured JSON with:
+      - ok: True when the model loads and responds
+      - reason: machine-readable reason code ('version_mismatch',
+        'missing_blob', 'oom', 'not_found', 'endpoint_unreachable',
+        'unknown_failure')
+      - message: human-readable explanation with a fix
+      - required_version / provider_version: for version_mismatch
+      - raw: raw error text truncated for debugging
+
+    Called by the UI before starting a run so users don't burn a benchmark
+    slot on a model the server can't actually load.
+    """
+    ep = endpoint.rstrip("/")
+
+    # Version check against our support table (fast path, no model load needed)
+    version = await _fetch_ollama_version(ep)
+    installed_tuple = _version_tuple(version) if version else (0,)
+    # We don't have the details dict for an arbitrary model name — do a best
+    # effort classification from the name alone.
+    support = _classify_model_support(model, {"family": "", "quantization_level": ""})
+    required = support["required_version"]
+    if required and installed_tuple < _version_tuple(required):
+        return {
+            "ok": False,
+            "reason": "version_mismatch",
+            "message": (
+                f"Model `{model}` needs Ollama {required}+ ({support['reason']}). "
+                f"Installed: {version or 'unknown'}. Upgrade with "
+                f"`brew upgrade ollama` then restart `ollama serve`."
+            ),
+            "required_version": required,
+            "provider_version": version,
+            "raw": None,
+        }
+
+    # Actual load test: minimum-cost chat round-trip
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{ep}/api/chat",
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": "ok"}],
+                    "stream": False,
+                    "options": {"num_predict": 1},
+                },
+            )
+    except httpx.HTTPError as exc:
+        return {
+            "ok": False,
+            "reason": "endpoint_unreachable",
+            "message": f"Cannot reach {ep}: {exc}",
+            "raw": str(exc),
+            "provider_version": version,
+        }
+
+    if resp.status_code == 200:
+        return {
+            "ok": True,
+            "reason": None,
+            "message": "Model loaded and responded.",
+            "provider_version": version,
+            "raw": None,
+        }
+
+    raw = resp.text[:600]
+    lower = raw.lower()
+
+    if "no such file or directory" in lower:
+        return {
+            "ok": False,
+            "reason": "missing_blob",
+            "message": (
+                f"Model file missing on disk for `{model}`. The registry references a "
+                f"blob that is not present. Fix: `ollama rm {model} && ollama pull {model}`."
+            ),
+            "raw": raw,
+            "provider_version": version,
+        }
+
+    if "out of memory" in lower or "cudamalloc" in lower:
+        return {
+            "ok": False,
+            "reason": "oom",
+            "message": (
+                f"`{model}` failed to load due to VRAM pressure. Free up memory "
+                f"(`ollama stop --all` on other hosts), lower context, or use a smaller quant."
+            ),
+            "raw": raw,
+            "provider_version": version,
+        }
+
+    if "model" in lower and "not found" in lower:
+        return {
+            "ok": False,
+            "reason": "not_found",
+            "message": f"`{model}` is not installed at {ep}. Fix: `ollama pull {model}`.",
+            "raw": raw,
+            "provider_version": version,
+        }
+
+    if "unable to load model" in lower or "failed to load model" in lower:
+        return {
+            "ok": False,
+            "reason": "version_mismatch",
+            "message": (
+                f"Ollama could not load `{model}`. This usually means the installed Ollama "
+                f"version is older than the model's architecture or quantization format "
+                f"(e.g. Qwen3.5/3.6, TQ1_0/TQ2_0, MXFP4). Upgrade with "
+                f"`brew upgrade ollama` (target 0.12+), then restart `ollama serve`."
+            ),
+            "raw": raw,
+            "provider_version": version,
+        }
+
+    return {
+        "ok": False,
+        "reason": "unknown_failure",
+        "message": f"Health check failed ({resp.status_code}): {raw[:300]}",
+        "raw": raw,
+        "provider_version": version,
     }
 
 

@@ -28,6 +28,7 @@ _active_runs: dict[str, dict[str, Any]] = {}
 class BenchmarkRequest(BaseModel):
     model: str
     endpoint: str = "http://localhost:11434"
+    provider: str = "ollama"
     suites: list[str] = Field(default_factory=lambda: ["speed", "toolcall", "dataextract", "instructfollow", "reasonmath"])
     harness: str = "raw"
     runs: int = 3
@@ -39,7 +40,7 @@ async def start_benchmark_route(req: BenchmarkRequest):
     run_id = str(uuid.uuid4())[:8]
     config = RunConfig(
         model=req.model,
-        provider="ollama",
+        provider=req.provider,
         endpoint=req.endpoint,
         harness=req.harness,
         suite_names=req.suites,
@@ -77,7 +78,7 @@ async def start_benchmark_route(req: BenchmarkRequest):
                 "error": str(exc),
             })
 
-    asyncio.sessions_spawn(_run())
+    asyncio.create_task(_run())
     return {"run_id": run_id, "status": "started"}
 
 
@@ -123,6 +124,8 @@ async def list_runs(limit: int = Query(default=50, le=200)):
             continue
         try:
             data = json.loads(run_file.read_text())
+            machine = data.get("machine", {}) or {}
+            speed_metrics = data.get("speed_metrics", {}) or {}
             runs.append({
                 "id": d.name,
                 "timestamp": data.get("timestamp", ""),
@@ -131,6 +134,7 @@ async def list_runs(limit: int = Query(default=50, le=200)):
                 "quality_score": data.get("quality_score", 0),
                 "speed_score": data.get("speed_score", 0),
                 "reliability_score": data.get("reliability_score", 0),
+                "value_score": data.get("value_score", 0),
                 "total_runtime_sec": data.get("total_runtime_sec", 0),
                 "harness": data.get("harness", "raw"),
                 "suites": {
@@ -142,7 +146,15 @@ async def list_runs(limit: int = Query(default=50, le=200)):
                     for name, s in data.get("suites", {}).items()
                 },
                 "provider": data.get("provider", ""),
-                "machine": data.get("machine", {}).get("machine_id", ""),
+                "machine": machine.get("machine_id", ""),
+                "gpu": machine.get("gpu", ""),
+                "gpu_memory_gb": machine.get("gpu_memory_gb", 0),
+                "cpu": machine.get("cpu", ""),
+                "system_memory_gb": machine.get("system_memory_gb", 0),
+                "os": machine.get("os", ""),
+                "generation_tok_per_sec": speed_metrics.get("generation_tok_per_sec", 0),
+                "prompt_eval_tok_per_sec": speed_metrics.get("prompt_eval_tok_per_sec", 0),
+                "ttft_ms": speed_metrics.get("ttft_ms", 0),
             })
         except Exception:
             continue
