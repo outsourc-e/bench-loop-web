@@ -184,17 +184,90 @@ export function useHardware() {
   return { data, loading }
 }
 
+/**
+ * useModels — fetches the auto-detected providers PLUS any user-added
+ * endpoints stored in localStorage. The legacy `endpoint` argument is kept
+ * for callers that only need one specific endpoint; when omitted, we merge
+ * the default auto-probe with every saved endpoint so adding PC1 doesn't
+ * drop the local ones.
+ */
+const EXTRA_ENDPOINTS_KEY = 'benchloop.extra_endpoints'
+
+export function getExtraEndpoints(): string[] {
+  try {
+    const raw = localStorage.getItem(EXTRA_ENDPOINTS_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+export function setExtraEndpoints(list: string[]): void {
+  try {
+    localStorage.setItem(EXTRA_ENDPOINTS_KEY, JSON.stringify(list))
+  } catch {
+    /* localStorage disabled */
+  }
+}
+
+export function addExtraEndpoint(url: string): string[] {
+  const cleaned = url.trim().replace(/\/$/, '')
+  if (!cleaned) return getExtraEndpoints()
+  const list = getExtraEndpoints()
+  if (!list.includes(cleaned)) list.push(cleaned)
+  setExtraEndpoints(list)
+  return list
+}
+
+export function removeExtraEndpoint(url: string): string[] {
+  const list = getExtraEndpoints().filter((u) => u !== url)
+  setExtraEndpoints(list)
+  return list
+}
+
 export function useModels(endpoint?: string) {
   const [data, setData] = useState<ModelsResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refresh = useCallback(() => {
     setLoading(true)
-    const url = endpoint ? `/api/models?endpoint=${encodeURIComponent(endpoint)}` : '/api/models'
-    fetch(url)
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => {})
+
+    // Single-endpoint mode: caller wants one specific endpoint only.
+    if (endpoint) {
+      fetch(`/api/models?endpoint=${encodeURIComponent(endpoint)}`)
+        .then((r) => r.json())
+        .then(setData)
+        .catch(() => {})
+        .finally(() => setLoading(false))
+      return
+    }
+
+    // Auto-discovery: default probe + every saved extra endpoint.
+    const extra = getExtraEndpoints()
+    const urls = ['/api/models', ...extra.map((e) => `/api/models?endpoint=${encodeURIComponent(e)}`)]
+
+    Promise.all(urls.map((u) => fetch(u).then((r) => r.json()).catch(() => null)))
+      .then((results) => {
+        // Dedupe providers by url so the auto-probed `localhost:11434` and a
+        // user-saved `http://localhost:11434` don't show twice.
+        const seen = new Set<string>()
+        const providers: ProviderInfo[] = []
+        let total = 0
+        for (const res of results) {
+          if (!res || !Array.isArray(res.providers)) continue
+          for (const p of res.providers as ProviderInfo[]) {
+            if (!p.available) continue
+            const key = p.url
+            if (seen.has(key)) continue
+            seen.add(key)
+            providers.push(p)
+            total += p.model_count || (p.models?.length ?? 0)
+          }
+        }
+        setData({ providers, total_models: total })
+      })
       .finally(() => setLoading(false))
   }, [endpoint])
 

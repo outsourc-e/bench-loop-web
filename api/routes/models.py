@@ -32,11 +32,45 @@ class PullRequest(BaseModel):
 # Common local provider endpoints to probe
 KNOWN_PROVIDERS = [
     {"name": "ollama", "url": "http://localhost:11434", "type": "ollama", "label": "Ollama (local)"},
+    # Common SSH-tunnel ports for remote Ollama hosts (PC1 / PC2 / lab boxes).
+    # We probe them as ollama because that's what people tunnel.
+    {"name": "ollama-tunnel-11435", "url": "http://localhost:11435", "type": "ollama", "label": "Ollama @ :11435 (tunnel)"},
+    {"name": "ollama-tunnel-11436", "url": "http://localhost:11436", "type": "openai", "label": "vmlx/MLX @ :11436 (tunnel)"},
+    {"name": "ollama-tunnel-11437", "url": "http://localhost:11437", "type": "ollama", "label": "Ollama @ :11437 (tunnel)"},
     {"name": "lm-studio", "url": "http://localhost:1234", "type": "openai", "label": "LM Studio (local)"},
-    {"name": "omlx", "url": "http://localhost:8000", "type": "openai", "label": "oMLX (local)"},
+    {"name": "omlx", "url": "http://localhost:8000", "type": "openai", "label": "oMLX / Osaurus (local)"},
     {"name": "jan", "url": "http://localhost:1337", "type": "openai", "label": "Jan / Atomic Chat (local)"},
     {"name": "vllm", "url": "http://localhost:8080", "type": "openai", "label": "vLLM (local)"},
+    # Any extra endpoints configured by the user via BENCHLOOP_EXTRA_ENDPOINTS
+    # (comma-separated url|type|label triples). Appended at probe time below.
 ]
+
+
+def _user_extra_providers() -> list[dict]:
+    """Read $BENCHLOOP_EXTRA_ENDPOINTS for additional probe targets.
+
+    Format: `url|type|label,url|type|label,...`
+    type is `ollama` or `openai`. label is free text.
+    """
+    import os
+    raw = os.environ.get("BENCHLOOP_EXTRA_ENDPOINTS", "").strip()
+    if not raw:
+        return []
+    out: list[dict] = []
+    for chunk in raw.split(","):
+        parts = [p.strip() for p in chunk.split("|")]
+        if len(parts) < 2 or not parts[0]:
+            continue
+        url = parts[0]
+        kind = parts[1] if len(parts) > 1 else "ollama"
+        label = parts[2] if len(parts) > 2 else url
+        out.append({
+            "name": f"extra-{len(out)}",
+            "url": url,
+            "type": kind,
+            "label": label,
+        })
+    return out
 
 
 # Minimum Ollama versions known to support specific architectures / quants.
@@ -229,7 +263,7 @@ async def list_models(endpoint: str = Query(default="")):
                 }
 
     detected = []
-    for provider in KNOWN_PROVIDERS:
+    for provider in KNOWN_PROVIDERS + _user_extra_providers():
         result = await _probe_provider(provider)
         if result:
             detected.append(result)

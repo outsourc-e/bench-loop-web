@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import {
+  addExtraEndpoint,
+  getExtraEndpoints,
   getHFModelDetails,
   pullModel,
+  removeExtraEndpoint,
   useActivePulls,
   useHardware,
   useHFModels,
@@ -89,7 +92,10 @@ function fitTone(ok: boolean | null): { text: string; color: string } {
 export default function ModelsTab({ onBenchmark }: Props) {
   const [customEndpoint, setCustomEndpoint] = useState('')
   const [addingEndpoint, setAddingEndpoint] = useState(false)
-  const { data, loading, refresh } = useModels(customEndpoint || undefined)
+  const [savedEndpoints, setSavedEndpoints] = useState<string[]>(() => getExtraEndpoints())
+  // No `customEndpoint` arg here — the hook now reads localStorage on its own
+  // and merges all probed endpoints into one provider list.
+  const { data, loading, refresh } = useModels()
   const { data: hardware } = useHardware()
   const [hfSearch, setHfSearch] = useState('')
   const [hfFormat, setHfFormat] = useState('')
@@ -186,7 +192,14 @@ export default function ModelsTab({ onBenchmark }: Props) {
                 placeholder="http://192.168.1.100:11434"
                 value={customEndpoint}
                 onChange={(e) => setCustomEndpoint(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { refresh(); setAddingEndpoint(false) } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && customEndpoint.trim()) {
+                    setSavedEndpoints(addExtraEndpoint(customEndpoint))
+                    setCustomEndpoint('')
+                    setAddingEndpoint(false)
+                    refresh()
+                  }
+                }}
                 style={{
                   background: 'var(--bg)',
                   border: '1px solid var(--border)',
@@ -198,10 +211,20 @@ export default function ModelsTab({ onBenchmark }: Props) {
                   width: 260,
                 }}
               />
-              <button className="btn btn-primary" style={{ fontSize: '0.75rem', padding: '4px 12px' }} onClick={() => { refresh(); setAddingEndpoint(false) }}>
+              <button
+                className="btn btn-primary"
+                style={{ fontSize: '0.75rem', padding: '4px 12px' }}
+                onClick={() => {
+                  if (!customEndpoint.trim()) { setAddingEndpoint(false); return }
+                  setSavedEndpoints(addExtraEndpoint(customEndpoint))
+                  setCustomEndpoint('')
+                  setAddingEndpoint(false)
+                  refresh()
+                }}
+              >
                 Connect
               </button>
-              <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 8px' }} onClick={() => { setCustomEndpoint(''); setAddingEndpoint(false); refresh() }}>
+              <button className="btn btn-secondary" style={{ fontSize: '0.75rem', padding: '4px 8px' }} onClick={() => { setCustomEndpoint(''); setAddingEndpoint(false) }}>
                 ✕
               </button>
             </div>
@@ -211,6 +234,44 @@ export default function ModelsTab({ onBenchmark }: Props) {
           </button>
         </div>
       </div>
+
+      {savedEndpoints.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem', alignSelf: 'center', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginRight: 4 }}>
+            Saved endpoints
+          </span>
+          {savedEndpoints.map((ep) => (
+            <span
+              key={ep}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '3px 6px 3px 10px',
+                borderRadius: 999,
+                background: 'rgba(45, 212, 127, 0.08)',
+                border: '1px solid rgba(45, 212, 127, 0.24)',
+                fontFamily: 'var(--mono)',
+                fontSize: '0.72rem',
+                color: 'var(--text)',
+              }}
+            >
+              {ep}
+              <button
+                onClick={() => { setSavedEndpoints(removeExtraEndpoint(ep)); refresh() }}
+                title="Remove"
+                style={{
+                  width: 18, height: 18, borderRadius: 999,
+                  background: 'transparent', border: 'none',
+                  color: 'var(--text-dim)', cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  padding: 0, fontSize: '0.9rem', lineHeight: 1,
+                }}
+              >×</button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {loading && <div style={{ color: 'var(--text-dim)', padding: '16px 0' }}>Scanning for providers...</div>}
 
