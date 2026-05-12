@@ -803,15 +803,18 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
           </thead>
           <tbody>
             {runs.map((run) => {
+              const modelName = run.model || 'unknown-model'
               const gpu = (run.gpu || '').replace('NVIDIA GeForce ', '').replace('Apple ', '')
-              const vram = run.gpu_memory_gb ? `${run.gpu_memory_gb.toFixed(0)}G` : ''
+              const vram = typeof run.gpu_memory_gb === 'number' && run.gpu_memory_gb > 0 ? `${run.gpu_memory_gb.toFixed(0)}G` : ''
               const hw = [gpu, vram].filter(Boolean).join(' ') || run.machine || '-'
-              const genTokPerSec = run.generation_tok_per_sec || 0
-              const ttft = run.ttft_ms || 0
+              const genTokPerSec = typeof run.generation_tok_per_sec === 'number' ? run.generation_tok_per_sec : 0
+              const ttft = typeof run.ttft_ms === 'number' ? run.ttft_ms : 0
+              const runtimeSec = typeof run.total_runtime_sec === 'number' ? run.total_runtime_sec : null
+              const sysMem = typeof run.system_memory_gb === 'number' ? run.system_memory_gb : null
               return (
                 <tr key={run.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 10px', fontWeight: 500 }} title={run.harness ? `${run.model} (${run.harness})` : run.model}>
-                    {run.model.length > 30 ? run.model.slice(0, 28) + '…' : run.model}
+                  <td style={{ padding: '10px 10px', fontWeight: 500 }} title={run.harness ? `${modelName} (${run.harness})` : modelName}>
+                    {modelName.length > 30 ? modelName.slice(0, 28) + '…' : modelName}
                   </td>
                   <td style={td}><ScoreBadge score={run.overall_score} size="sm" /></td>
                   <td style={td}><ScoreBadge score={run.quality_score} size="sm" /></td>
@@ -819,11 +822,11 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
                   <td style={td}><ScoreBadge score={run.reliability_score} size="sm" /></td>
                   <td style={{ ...td, ...mono }}>{genTokPerSec ? genTokPerSec.toFixed(1) : '-'}</td>
                   <td style={{ ...td, ...mono }}>{ttft ? `${ttft.toFixed(0)}ms` : '-'}</td>
-                  <td style={{ padding: '10px 10px', textAlign: 'left', color: 'var(--text-dim)', fontSize: '0.72rem' }} title={`${run.gpu || ''}${run.cpu ? ' / ' + run.cpu : ''}${run.system_memory_gb ? ' / ' + run.system_memory_gb.toFixed(0) + 'G RAM' : ''}`}>
+                  <td style={{ padding: '10px 10px', textAlign: 'left', color: 'var(--text-dim)', fontSize: '0.72rem' }} title={`${run.gpu || ''}${run.cpu ? ' / ' + run.cpu : ''}${sysMem ? ' / ' + sysMem.toFixed(0) + 'G RAM' : ''}`}>
                     {hw}
                   </td>
-                  <td style={{ ...td, ...mono, fontSize: '0.72rem' }}>{run.total_runtime_sec.toFixed(1)}s</td>
-                  <td style={{ ...td, color: 'var(--text-dim)', fontSize: '0.72rem' }}>{new Date(run.timestamp).toLocaleDateString()}</td>
+                  <td style={{ ...td, ...mono, fontSize: '0.72rem' }}>{runtimeSec != null ? `${runtimeSec.toFixed(1)}s` : '-'}</td>
+                  <td style={{ ...td, color: 'var(--text-dim)', fontSize: '0.72rem' }}>{run.timestamp ? new Date(run.timestamp).toLocaleDateString() : '-'}</td>
                 </tr>
               )
             })}
