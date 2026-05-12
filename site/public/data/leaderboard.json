@@ -1,200 +1,8 @@
 {
-  "generated_at": "2026-05-12T17:36:53.726Z",
-  "count": 17,
+  "generated_at": "2026-05-12T17:58:17.305Z",
+  "count": 8,
   "source": "bench-loop local runs",
   "runs": [
-    {
-      "id": "2026-04-15T191935.573443+0000-qwen3-8b-raw",
-      "timestamp": "2026-04-15T19:19:35.573443+00:00",
-      "model": "qwen3:8b",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 89.81198067632852,
-      "quality_score": 93.25333333333333,
-      "speed_score": 92.97555555555556,
-      "reliability_score": 79.71014492753623,
-      "generation_tok_per_sec": 70.35,
-      "ttft_ms": 28.67,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 92.97555555555556
-        },
-        "toolcall": {
-          "score": 82.23333333333333
-        },
-        "dataextract": {
-          "score": 90.78
-        },
-        "instructfollow": {
-          "score": 100
-        },
-        "reasonmath": {
-          "score": 100
-        }
-      }
-    },
-    {
-      "id": "20260430-154000-qwen3.6-27b-remote-55-ollama",
-      "timestamp": "2026-04-30T19:26:48.982336+00:00",
-      "model": "qwen3.6:27b",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 82.81513586956521,
-      "quality_score": 80.6125,
-      "speed_score": 100,
-      "reliability_score": 73.91304347826086,
-      "generation_tok_per_sec": 25.687655510037175,
-      "ttft_ms": 178.17224444444446,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 100
-        },
-        "toolcall": {
-          "score": 90
-        },
-        "dataextract": {
-          "score": 79.12
-        },
-        "instructfollow": {
-          "score": 73.33
-        },
-        "reasonmath": {
-          "score": 80
-        }
-      }
-    },
-    {
-      "id": "20260430-192700-pc1-critic-latest-remote-55-ollama",
-      "timestamp": "2026-04-30T23:21:53.221758+00:00",
-      "model": "pc1-critic:latest",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 78.83929166666667,
-      "quality_score": 76.6775,
-      "speed_score": 100,
-      "reliability_score": 66.66666666666666,
-      "generation_tok_per_sec": 94.59154807703585,
-      "ttft_ms": 64.23536666666666,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 100
-        },
-        "toolcall": {
-          "score": 96.67
-        },
-        "dataextract": {
-          "score": 73.38
-        },
-        "instructfollow": {
-          "score": 63.33
-        },
-        "reasonmath": {
-          "score": 73.33
-        }
-      }
-    },
-    {
-      "id": "2026-04-18T165130.084312+0000-qwen3.6-35b-a3b-q4-raw",
-      "timestamp": "2026-04-18T16:51:30.084312+00:00",
-      "model": "qwen3.6-35b-a3b-q4",
-      "harness": "raw",
-      "provider": "openai",
-      "machine": "Apple M1 Pro",
-      "overall_score": 75.63891787439614,
-      "quality_score": 78.86666666666667,
-      "speed_score": 81.60111111111111,
-      "reliability_score": 63.76811594202898,
-      "generation_tok_per_sec": 158.54,
-      "ttft_ms": 53.88,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 81.60111111111111
-        },
-        "toolcall": {
-          "score": 75.57333333333334
-        },
-        "dataextract": {
-          "score": 92.89333333333333
-        },
-        "instructfollow": {
-          "score": 75
-        },
-        "reasonmath": {
-          "score": 72
-        }
-      }
-    },
-    {
-      "id": "20260430-192153-pc1-coder-latest-remote-55-ollama",
-      "timestamp": "2026-04-30T23:19:37.056687+00:00",
-      "model": "pc1-coder:latest",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 74.79679166666668,
-      "quality_score": 69.3275,
-      "speed_score": 100,
-      "reliability_score": 66.66666666666666,
-      "generation_tok_per_sec": 191.06841454911893,
-      "ttft_ms": 63.29227777777778,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 100
-        },
-        "toolcall": {
-          "score": 76.67
-        },
-        "dataextract": {
-          "score": 88.42
-        },
-        "instructfollow": {
-          "score": 38.89
-        },
-        "reasonmath": {
-          "score": 73.33
-        }
-      }
-    },
-    {
-      "id": "2026-04-25T004421.913692+0000-mnt-c-users-13479-.lmstudio-models-lmstudio-community-qwen3.6-27b-gguf-qwen3.6-27b-q4_k_m.gguf-raw",
-      "timestamp": "2026-04-25T00:44:21.913692+00:00",
-      "model": "/mnt/c/Users/13479/.lmstudio/models/lmstudio-community/Qwen3.6-27B-GGUF/Qwen3.6-27B-Q4_K_M.gguf",
-      "harness": "raw",
-      "provider": "llama.cpp",
-      "machine": "Apple M1 Pro",
-      "overall_score": 74.33635990338165,
-      "quality_score": 82.99666666666667,
-      "speed_score": 56.48444444444444,
-      "reliability_score": 69.56521739130434,
-      "generation_tok_per_sec": 45.79,
-      "ttft_ms": 148.87,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 56.48444444444444
-        },
-        "instructfollow": {
-          "score": 81.11333333333333
-        },
-        "reasonmath": {
-          "score": 69.66666666666667
-        },
-        "toolcall": {
-          "score": 86.67333333333333
-        },
-        "dataextract": {
-          "score": 94.53333333333333
-        }
-      }
-    },
     {
       "id": "20260512-133521-pc1-coder-v2-latest-local-ollama",
       "timestamp": "2026-05-12T17:31:58.668548+00:00",
@@ -209,6 +17,7 @@
       "generation_tok_per_sec": 111.33429160232788,
       "ttft_ms": 104.20951111111111,
       "is_full_benchmark": true,
+      "is_quality_full": true,
       "suites": {
         "speed": {
           "score": 86.14
@@ -231,34 +40,71 @@
       }
     },
     {
-      "id": "2026-04-16T031616.947721+0000-qwen2.5-1.5b-raw",
-      "timestamp": "2026-04-16T03:16:16.947721+00:00",
-      "model": "qwen2.5:1.5b",
+      "id": "20260512-125752-qwen3-8b-local-ollama",
+      "timestamp": "2026-05-12T16:53:58.967201+00:00",
+      "model": "qwen3:8b",
       "harness": "raw",
       "provider": "ollama",
       "machine": "Apple M1 Pro",
-      "overall_score": 70.13040942028987,
-      "quality_score": 69.435,
-      "speed_score": 96.3,
-      "reliability_score": 50.72463768115942,
-      "generation_tok_per_sec": 76.36,
-      "ttft_ms": 12,
+      "overall_score": 72.93146666666667,
+      "quality_score": 73.616,
+      "speed_score": 78.88,
+      "reliability_score": 66.66666666666666,
+      "generation_tok_per_sec": 74.572395758733,
+      "ttft_ms": 108.04354444444444,
       "is_full_benchmark": true,
+      "is_quality_full": true,
       "suites": {
         "speed": {
-          "score": 96.3
+          "score": 78.88
         },
         "toolcall": {
-          "score": 86.68
+          "score": 91.67
+        },
+        "coding": {
+          "score": 100
         },
         "dataextract": {
-          "score": 83.61333333333333
+          "score": 69.75
         },
         "instructfollow": {
-          "score": 54.446666666666665
+          "score": 46.66
         },
         "reasonmath": {
-          "score": 53
+          "score": 60
+        }
+      }
+    },
+    {
+      "id": "2026-05-12T023106.943210+0000-qwen3.6-27b-raw",
+      "timestamp": "2026-05-12T02:31:06.943210+00:00",
+      "model": "qwen3.6:27b",
+      "harness": "raw",
+      "provider": "ollama",
+      "machine": "Apple M1 Pro",
+      "overall_score": 62.9067693236715,
+      "quality_score": 74.41833333333334,
+      "speed_score": 42.85444444444445,
+      "reliability_score": 53.62318840579711,
+      "generation_tok_per_sec": 20.63,
+      "ttft_ms": 107.23,
+      "is_full_benchmark": true,
+      "is_quality_full": true,
+      "suites": {
+        "speed": {
+          "score": 42.85444444444445
+        },
+        "toolcall": {
+          "score": 55.580000000000005
+        },
+        "dataextract": {
+          "score": 94.53333333333333
+        },
+        "instructfollow": {
+          "score": 72.22666666666667
+        },
+        "reasonmath": {
+          "score": 75.33333333333333
         }
       }
     },
@@ -276,6 +122,7 @@
       "generation_tok_per_sec": 37.65796671362716,
       "ttft_ms": 158.33927777777777,
       "is_full_benchmark": true,
+      "is_quality_full": true,
       "suites": {
         "speed": {
           "score": 100
@@ -295,267 +142,140 @@
       }
     },
     {
-      "id": "2026-04-15T200753.724665+0000-nous-hermes2-latest-raw",
-      "timestamp": "2026-04-15T20:07:53.724665+00:00",
-      "model": "nous-hermes2:latest",
-      "harness": "raw",
+      "id": "20260512-135606-qwen3-8b-local-ollama",
+      "timestamp": "2026-05-12T17:50:47.855258+00:00",
+      "model": "qwen3:8b",
+      "harness": "qwen",
       "provider": "ollama",
       "machine": "Apple M1 Pro",
-      "overall_score": 59.23014492753623,
-      "quality_score": 60.333333333333336,
-      "speed_score": 65.01666666666667,
-      "reliability_score": 52.17391304347826,
-      "generation_tok_per_sec": 39.54,
-      "ttft_ms": 51.21,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 65.01666666666667
-        },
-        "toolcall": {
-          "score": 0
-        },
-        "dataextract": {
-          "score": 91.66666666666667
-        },
-        "instructfollow": {
-          "score": 100
-        },
-        "reasonmath": {
-          "score": 49.666666666666664
-        }
-      }
-    },
-    {
-      "id": "2026-04-18T135822.327265+0000-qwen2.5-0.5b-raw",
-      "timestamp": "2026-04-18T13:58:22.327265+00:00",
-      "model": "qwen2.5:0.5b",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 55.30812098765433,
-      "quality_score": 52.11600000000001,
-      "speed_score": 97.72777777777777,
-      "reliability_score": 28.39506172839506,
-      "generation_tok_per_sec": 135.77,
-      "ttft_ms": 26,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 97.72777777777777
-        },
-        "toolcall": {
-          "score": 55.56666666666667
-        },
-        "dataextract": {
-          "score": 59.28
-        },
-        "instructfollow": {
-          "score": 30
-        },
-        "reasonmath": {
-          "score": 34.333333333333336
-        },
-        "loop_schema": {
-          "score": 81.4
-        }
-      }
-    },
-    {
-      "id": "2026-04-24T030403.188364+0000-qwen3.5-27b-claude-4.6-opus-reasoning-distilled-raw",
-      "timestamp": "2026-04-24T03:04:03.188364+00:00",
-      "model": "qwen3.5-27b-claude-4.6-opus-reasoning-distilled",
-      "harness": "raw",
-      "provider": "llama.cpp",
-      "machine": "Apple M1 Pro",
-      "overall_score": 40.944847670250894,
-      "quality_score": 44.24111111111111,
-      "speed_score": 33.33,
-      "reliability_score": 39.784946236559136,
+      "overall_score": 58.001022222222225,
+      "quality_score": 76.416,
+      "speed_score": 0,
+      "reliability_score": 63.888888888888886,
       "generation_tok_per_sec": 0,
       "ttft_ms": 0,
-      "is_full_benchmark": true,
+      "is_full_benchmark": false,
+      "is_quality_full": true,
       "suites": {
-        "speed": {
-          "score": 33.33
-        },
         "toolcall": {
-          "score": 71.12666666666667
+          "score": 91.67
         },
-        "dataextract": {
-          "score": 94.43333333333334
-        },
-        "instructfollow": {
-          "score": 22.22
-        },
-        "reasonmath": {
-          "score": 44.333333333333336
-        },
-        "loop_code_fix": {
-          "score": 0
-        },
-        "loop_schema": {
-          "score": 33.333333333333336
-        }
-      }
-    },
-    {
-      "id": "20260430-152417-pc1-qwen35-latest-remote-55-ollama",
-      "timestamp": "2026-04-30T18:50:17.752252+00:00",
-      "model": "pc1-qwen35:latest",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 37.30769230769231,
-      "quality_score": 0,
-      "speed_score": 100,
-      "reliability_score": 69.23076923076923,
-      "generation_tok_per_sec": 42.12392792242888,
-      "ttft_ms": 414.2696222222222,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
+        "coding": {
           "score": 100
         },
-        "toolcall": {
-          "score": 0
-        },
         "dataextract": {
-          "score": 0
+          "score": 69.75
         },
         "instructfollow": {
-          "score": 0
+          "score": 46.66
         },
         "reasonmath": {
-          "score": 0
+          "score": 74
         }
       }
     },
     {
-      "id": "20260430-191703-jackrong-opus-27b-latest-remote-55-ollama",
-      "timestamp": "2026-04-30T22:45:31.824982+00:00",
-      "model": "jackrong-opus-27b:latest",
+      "id": "20260512-135605-qwen3-8b-local-ollama",
+      "timestamp": "2026-05-12T17:50:47.954491+00:00",
+      "model": "qwen3:8b",
+      "harness": "hermes",
+      "provider": "ollama",
+      "machine": "Apple M1 Pro",
+      "overall_score": 57.194722222222225,
+      "quality_score": 74.95,
+      "speed_score": 0,
+      "reliability_score": 63.888888888888886,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": true,
+      "suites": {
+        "toolcall": {
+          "score": 91.67
+        },
+        "coding": {
+          "score": 100
+        },
+        "dataextract": {
+          "score": 69.75
+        },
+        "instructfollow": {
+          "score": 46.66
+        },
+        "reasonmath": {
+          "score": 66.67
+        }
+      }
+    },
+    {
+      "id": "20260512-135341-OsaurusAI-MiniMax-M2.7-Small-JANGTQ-local-openai_compat",
+      "timestamp": "2026-05-12T16:43:15.993055+00:00",
+      "model": "OsaurusAI/MiniMax-M2.7-Small-JANGTQ",
+      "harness": "raw",
+      "provider": "openai_compat",
+      "machine": "Apple M1 Pro",
+      "overall_score": 50.62902098765432,
+      "quality_score": 50.714,
+      "speed_score": 50.41,
+      "reliability_score": 50.617283950617285,
+      "generation_tok_per_sec": 15.617782013939827,
+      "ttft_ms": 0,
+      "is_full_benchmark": true,
+      "is_quality_full": true,
+      "suites": {
+        "speed": {
+          "score": 50.41
+        },
+        "toolcall": {
+          "score": 83.33
+        },
+        "coding": {
+          "score": 25
+        },
+        "dataextract": {
+          "score": 29.68
+        },
+        "instructfollow": {
+          "score": 68.89
+        },
+        "reasonmath": {
+          "score": 46.67
+        }
+      }
+    },
+    {
+      "id": "20260512-001414-qwen2.5-1.5b-local-ollama",
+      "timestamp": "2026-05-12T04:10:33.073444+00:00",
+      "model": "qwen2.5:1.5b",
       "harness": "raw",
       "provider": "ollama",
       "machine": "Apple M1 Pro",
-      "overall_score": 28.638583333333333,
-      "quality_score": 0.555,
-      "speed_score": 100,
+      "overall_score": 44.84843333333333,
+      "quality_score": 36.162,
+      "speed_score": 83.13,
       "reliability_score": 33.33333333333333,
-      "generation_tok_per_sec": 42.27923832417142,
-      "ttft_ms": 144.39317777777777,
+      "generation_tok_per_sec": 94.35909662354109,
+      "ttft_ms": 72.37697666666666,
       "is_full_benchmark": true,
+      "is_quality_full": true,
       "suites": {
         "speed": {
-          "score": 100
+          "score": 83.13
         },
         "toolcall": {
-          "score": 0
+          "score": 51.67
+        },
+        "coding": {
+          "score": 56.25
         },
         "dataextract": {
           "score": 0
         },
         "instructfollow": {
-          "score": 2.22
+          "score": 38.89
         },
         "reasonmath": {
-          "score": 0
-        }
-      }
-    },
-    {
-      "id": "2026-04-18T163305.100663+0000-qwen3.6-35b-a3b-ud-q4_k_m.gguf-raw",
-      "timestamp": "2026-04-18T16:33:05.100663+00:00",
-      "model": "Qwen3.6-35B-A3B-UD-Q4_K_M.gguf",
-      "harness": "raw",
-      "provider": "openai",
-      "machine": "Apple M1 Pro",
-      "overall_score": 11.828692028985508,
-      "quality_score": 6.751666666666667,
-      "speed_score": 33.33,
-      "reliability_score": 5.797101449275362,
-      "generation_tok_per_sec": 0,
-      "ttft_ms": 0,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 33.33
-        },
-        "toolcall": {
-          "score": 0
-        },
-        "dataextract": {
-          "score": 8.120000000000001
-        },
-        "instructfollow": {
-          "score": 18.886666666666667
-        },
-        "reasonmath": {
-          "score": 0
-        }
-      }
-    },
-    {
-      "id": "2026-04-15T191755.413507+0000-hf.co-unsloth-qwen3.5-27b-gguf-q4_k_m-raw",
-      "timestamp": "2026-04-15T19:17:55.413507+00:00",
-      "model": "hf.co/unsloth/Qwen3.5-27B-GGUF:Q4_K_M",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 0,
-      "quality_score": 0,
-      "speed_score": 0,
-      "reliability_score": 0,
-      "generation_tok_per_sec": 0,
-      "ttft_ms": 0,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 0
-        },
-        "toolcall": {
-          "score": 0
-        },
-        "dataextract": {
-          "score": 0
-        },
-        "instructfollow": {
-          "score": 0
-        },
-        "reasonmath": {
-          "score": 0
-        }
-      }
-    },
-    {
-      "id": "2026-04-16T024427.799047+0000-hf.co-centara-gemma-4-e4b-it-obliterated-q2_k-gguf-latest-raw",
-      "timestamp": "2026-04-16T02:44:27.799047+00:00",
-      "model": "hf.co/Centara/gemma-4-E4B-it-OBLITERATED-Q2_K-GGUF:latest",
-      "harness": "raw",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 0,
-      "quality_score": 0,
-      "speed_score": 0,
-      "reliability_score": 0,
-      "generation_tok_per_sec": 0,
-      "ttft_ms": 0,
-      "is_full_benchmark": true,
-      "suites": {
-        "speed": {
-          "score": 0
-        },
-        "toolcall": {
-          "score": 0
-        },
-        "dataextract": {
-          "score": 0
-        },
-        "instructfollow": {
-          "score": 0
-        },
-        "reasonmath": {
-          "score": 0
+          "score": 34
         }
       }
     }

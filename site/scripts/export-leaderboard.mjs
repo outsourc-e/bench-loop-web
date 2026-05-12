@@ -25,9 +25,22 @@ const REQUIRED_FULL = new Set([
   'instructfollow',
   'reasonmath',
 ])
+// Quality-only runs (all five non-speed suites). Used for harness comparisons
+// where you want apples-to-apples quality scores without re-running speed.
+const REQUIRED_QUALITY = new Set([
+  'toolcall',
+  'dataextract',
+  'instructfollow',
+  'reasonmath',
+])
 
 const args = process.argv.slice(2)
 const includeAll = args.includes('--all')
+// Cutoff: scoring was overhauled 2026-05-01 (new speed curve, fixed harnesses,
+// canonical bench_loop path). Older runs used an incompatible scale, so we drop
+// them from the public leaderboard unless --legacy is passed.
+const includeLegacy = args.includes('--legacy')
+const MIN_TS = '2026-05-01T00:00:00Z'
 let srcDir = resolve(homedir(), '.bench-loop', 'runs')
 let outFile = resolve(dirname(new URL(import.meta.url).pathname), '..', 'public', 'data', 'leaderboard.json')
 
@@ -53,13 +66,24 @@ for (const { id, dir } of entries) {
     const suites = data.suites || {}
     const suiteNames = Object.keys(suites)
     const isFull = [...REQUIRED_FULL].every((s) => suiteNames.includes(s))
+    const isQualityFull = [...REQUIRED_QUALITY].every((s) => suiteNames.includes(s))
 
-    if (!includeAll && !isFull) continue
+    // Default: keep full benchmarks AND harness-comparison runs (quality_full).
+    // --all opts in to every run.
+    if (!includeAll && !isFull && !isQualityFull) continue
+    if (!includeLegacy && data.timestamp && data.timestamp < MIN_TS) continue
+
+    // Strip filesystem paths from model names (legacy lmstudio runs leaked the
+    // full Windows blob path). Keep only the trailing model basename.
+    let modelId = data.model?.model_id || 'unknown'
+    if (modelId.includes('/') && modelId.endsWith('.gguf')) {
+      modelId = modelId.split('/').pop() || modelId
+    }
 
     runs.push({
       id,
       timestamp: data.timestamp || '',
-      model: data.model?.model_id || 'unknown',
+      model: modelId,
       harness: data.harness || 'raw',
       provider: data.provider || '',
       machine: data.machine?.gpu || data.machine?.cpu || data.machine?.machine_id || '',
@@ -70,6 +94,7 @@ for (const { id, dir } of entries) {
       generation_tok_per_sec: data.speed_metrics?.generation_tok_per_sec || 0,
       ttft_ms: data.speed_metrics?.ttft_ms || 0,
       is_full_benchmark: isFull,
+      is_quality_full: isQualityFull,
       suites: Object.fromEntries(
         Object.entries(suites).map(([k, v]) => [k, { score: v.score || 0 }])
       ),
