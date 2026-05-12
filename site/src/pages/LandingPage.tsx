@@ -67,12 +67,12 @@ export default function LandingPage() {
       <section className="landing-hero card-premium">
         <div className="aurora-orb" aria-hidden="true" />
         <div className="landing-hero-copy">
-          <div className="page-kicker">
-            <LoopLogo size={14} /> Local LLM benchmark lab
+          <div className="page-kicker page-kicker-lg">
+            <LoopLogo size={18} /> Local LLM benchmark lab
           </div>
           <h1>
-            Benchmark local models<br />
-            <span className="grad-text">by what actually matters.</span>
+            <span className="hero-line-1">Benchmark local models</span>
+            <span className="hero-line-2 grad-text">by what actually matters.</span>
           </h1>
           <p className="landing-lede">
             BenchLoop scores quality, speed, reliability, and real agent-loop behavior across repeatable local workloads.
@@ -199,7 +199,10 @@ export default function LandingPage() {
             top.map((r, i) => (
               <div key={r.id} className="preview-row">
                 <span className="preview-rank">#{i + 1}</span>
-                <span className="preview-model">{r.model}</span>
+                <div className="preview-model-wrap">
+                  <span className="preview-model">{r.model}</span>
+                  <span className="preview-harness">{r.harness || 'raw'} harness</span>
+                </div>
                 <span className={`preview-score ${r.overall_score >= 80 ? 'green' : ''}`}>{r.overall_score.toFixed(1)}</span>
               </div>
             ))

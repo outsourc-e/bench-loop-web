@@ -1254,3 +1254,101 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ============================================================
+ * Logo + hero polish — applied to integrate the pixel-chip logo
+ * ============================================================ */
+
+.loop-logo {
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.page-kicker svg,
+.page-kicker img {
+  margin-right: 6px;
+}
+
+.page-kicker-lg {
+  font-size: 0.78rem;
+  padding: 7px 12px;
+}
+
+.page-kicker-lg img {
+  width: 20px;
+  height: 20px;
+}
+
+/* Hero h1 — controlled line breaks so the gradient line never orphans */
+.landing-hero h1 {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hero-line-1,
+.hero-line-2 {
+  display: block;
+}
+
+@media (max-width: 720px) {
+  .hero-line-1,
+  .hero-line-2 {
+    display: inline;
+  }
+  .hero-line-2 {
+    margin-left: 0.35em;
+  }
+  .landing-hero h1 {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0;
+  }
+}
+
+/* Preview row in the live leaderboard now has a sub-line */
+.preview-model-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.preview-harness {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  margin-top: 1px;
+}
+
+/* Stat row larger numbers + more breathing room */
+.metric-grid-tight .metric-card {
+  padding: var(--s-5) var(--s-4);
+}
+
+.metric-grid-tight .metric-value {
+  font-size: 1.65rem;
+}
+
+/* Header GitHub button — give it slightly more presence */
+.header-actions .btn-ghost {
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.025);
+  color: var(--text);
+}
+
+.header-actions .btn-ghost:hover {
+  border-color: rgba(45, 212, 127, 0.34);
+  color: var(--accent);
+  background: rgba(45, 212, 127, 0.04);
+}
+
+/* Footer logo + mark spacing */
+.site-footer-inner > div:first-child {
+  gap: var(--s-3);
+}
+
+.site-footer-inner img,
+.site-footer-inner .loop-logo {
+  border-radius: 5px;
+}

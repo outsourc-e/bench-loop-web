@@ -34,7 +34,7 @@ export default function App() {
       <header className="header">
         <div className="header-inner">
           <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-            <span className="logo-mark" aria-hidden="true" />
+            <img src="/logo.png" alt="BenchLoop" width={30} height={30} style={{ display: 'block', borderRadius: 7 }} draggable={false} />
             <span className="logo-text">BenchLoop</span>
             <span className="logo-badge">local</span>
           </div>
