@@ -3,6 +3,7 @@ import LandingPage from './pages/LandingPage'
 import DocsPage from './pages/DocsPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import DownloadPage from './pages/DownloadPage'
+import LoopLogo from './components/LoopLogo'
 import './App.css'
 
 export default function App() {
@@ -20,7 +21,7 @@ export default function App() {
       <header className="header">
         <div className="header-inner">
           <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-            <span className="logo-mark" aria-hidden="true" />
+            <LoopLogo size={32} />
             <span className="logo-text">BenchLoop</span>
           </div>
           <nav className="nav">
@@ -61,9 +62,9 @@ export default function App() {
       <footer className="site-footer">
         <div className="site-footer-inner">
           <div>
-            <span className="logo-mark small" aria-hidden="true" />
+            <LoopLogo size={22} />
             <strong>BenchLoop</strong>
-            <span>© 2026 OCPlatform Labs</span>
+            <span>© 2026 OpenClaw Labs</span>
           </div>
           <div className="site-footer-links">
             <a href="https://github.com/ocplatform/bench-loop" target="_blank" rel="noreferrer">GitHub</a>

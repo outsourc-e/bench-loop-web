@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useLeaderboard } from '../hooks/useLeaderboard'
 import CliInstall from '../components/CliInstall'
+import LoopLogo from '../components/LoopLogo'
 
 const featureCards = [
   {
@@ -25,6 +26,27 @@ const featureCards = [
   },
 ]
 
+const howSteps: { num: string; title: string; body: string; code?: string }[] = [
+  {
+    num: '01',
+    title: 'Install the CLI',
+    body: 'One pipx command. No Docker, no API keys, no signup.',
+    code: 'pipx install benchloop',
+  },
+  {
+    num: '02',
+    title: 'Run the loop',
+    body: 'Point at any local endpoint — Ollama, LM Studio, MLX, vLLM. Six suites, one run.',
+    code: 'benchloop run --model qwen3:8b',
+  },
+  {
+    num: '03',
+    title: 'Compare + publish',
+    body: 'Browse in the local web app. Export to JSON. Submit your run to the public leaderboard.',
+    code: 'benchloop export --output ./runs.json',
+  },
+]
+
 const suiteRows: [string, string][] = [
   ['speed', 'Latency, throughput, TTFT, generation tok/s'],
   ['toolcall', 'Structured tool-call correctness across realistic tasks'],
@@ -42,18 +64,28 @@ export default function LandingPage() {
   return (
     <div className="landing-page">
       <section className="landing-hero card-premium">
+        <div className="aurora-orb" aria-hidden="true" />
+        <div className="aurora-orb aurora-orb-2" aria-hidden="true" />
         <div className="landing-hero-copy">
-          <div className="page-kicker">Local LLM benchmark lab</div>
-          <h1>Benchmark local models by what actually matters.</h1>
+          <div className="page-kicker">
+            <LoopLogo size={14} /> Local LLM benchmark lab
+          </div>
+          <h1>
+            Benchmark local models<br />
+            <span className="grad-text">by what actually matters.</span>
+          </h1>
           <p className="landing-lede">
             BenchLoop scores quality, speed, reliability, and harness behavior across repeatable local workloads.
             Stop comparing screenshots and vibes. Run the loop, get the receipts.
           </p>
           <div className="landing-actions">
-            <Link to="/download" className="btn btn-primary">Install BenchLoop</Link>
-            <Link to="/leaderboard" className="btn btn-secondary">View leaderboard</Link>
+            <Link to="/download" className="btn btn-primary btn-lg">
+              Install BenchLoop <span aria-hidden="true">→</span>
+            </Link>
+            <Link to="/leaderboard" className="btn btn-secondary btn-lg">View leaderboard</Link>
           </div>
           <div className="landing-trust-row">
+            <small>Plays nice with</small>
             <span>Ollama</span>
             <span>LM Studio</span>
             <span>MLX / Osaurus</span>
@@ -69,7 +101,7 @@ export default function LandingPage() {
             <strong>benchloop run</strong>
           </div>
           <div className="terminal-body">
-            <div className="terminal-line muted">model</div>
+            <div className="terminal-line muted">$ benchloop run --model</div>
             <div className="terminal-line model">{best?.model || 'qwen3:8b'}</div>
             <div className="terminal-grid">
               <Metric label="Overall" value={best?.overall_score?.toFixed(1) || '72.9'} tone="green" />
@@ -78,12 +110,14 @@ export default function LandingPage() {
               <Metric label="Tok/s" value={best?.generation_tok_per_sec?.toFixed(1) || '74.6'} />
             </div>
             <div className="terminal-progress"><span style={{ width: '83%' }} /></div>
-            <div className="terminal-foot">6 suites · raw harness · persisted to ~/.bench-loop/runs</div>
+            <div className="terminal-foot">
+              <span className="dot live" /> 6 suites · raw harness · persisted to <code>~/.bench-loop/runs</code>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="metric-grid">
+      <section className="metric-grid metric-grid-tight">
         <Stat label="Runs indexed" value={loading ? '…' : String(runs.length)} />
         <Stat label="Full benchmarks" value={loading ? '…' : String(runs.filter((r) => r.is_full_benchmark).length)} />
         <Stat label="Best overall" value={best ? best.overall_score.toFixed(1) : '—'} />
@@ -93,11 +127,34 @@ export default function LandingPage() {
       <section>
         <div className="page-header">
           <div>
-            <div className="page-kicker">Product</div>
+            <div className="page-kicker">How it works</div>
+            <h2 className="page-title">Three steps. One repeatable run.</h2>
+            <p className="page-subtitle">
+              No accounts. No telemetry. Your benchmark, your hardware, your numbers.
+            </p>
+          </div>
+        </div>
+        <div className="how-grid">
+          {howSteps.map((s) => (
+            <div key={s.num} className="how-card card">
+              <div className="how-num">{s.num}</div>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+              {s.code && (
+                <pre className="how-code"><span className="prompt">$</span>{s.code}</pre>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="page-header">
+          <div>
+            <div className="page-kicker">Why BenchLoop</div>
             <h2 className="page-title">Built for people tuning real local stacks.</h2>
             <p className="page-subtitle">
-              BenchLoop is not another static leaderboard. It is a repeatable local benchmark rig for models,
-              hardware, inference backends, and prompt harnesses.
+              Not a static leaderboard. A repeatable rig for models, hardware, inference backends, and prompt harnesses.
             </p>
           </div>
         </div>
@@ -117,8 +174,8 @@ export default function LandingPage() {
           <div className="page-kicker">Suites</div>
           <h2>Six ways to catch model lies.</h2>
           <p className="page-subtitle">
-            Speed is useful, but speed alone is how you accidentally crown a toaster. BenchLoop blends quality,
-            reliability, and throughput into one comparable run.
+            Speed alone is how you accidentally crown a toaster. BenchLoop blends quality, reliability, and throughput
+            into one comparable run.
           </p>
           <div className="suite-list">
             {suiteRows.map(([name, desc]) => (
@@ -167,6 +224,7 @@ export default function LandingPage() {
       </section>
 
       <section className="launch-strip card-premium">
+        <div className="aurora-orb aurora-orb-strip" aria-hidden="true" />
         <div>
           <div className="page-kicker">Ship path</div>
           <h2>Ready to publish your own runs?</h2>
@@ -175,8 +233,8 @@ export default function LandingPage() {
           </p>
         </div>
         <div className="launch-actions">
-          <Link to="/download" className="btn btn-primary">Install</Link>
-          <Link to="/docs" className="btn btn-secondary">Read the docs</Link>
+          <Link to="/download" className="btn btn-primary btn-lg">Install</Link>
+          <Link to="/docs" className="btn btn-secondary btn-lg">Read the docs</Link>
         </div>
       </section>
     </div>
@@ -194,7 +252,7 @@ function Metric({ label, value, tone }: { label: string; value: string; tone?: '
 
 function Stat({ label, value, compact }: { label: string; value: string; compact?: boolean }) {
   return (
-    <div className="metric-card">
+    <div className="metric-card stat-card">
       <div className="metric-label">{label}</div>
       <div className={`metric-value ${compact ? 'metric-value-compact' : ''}`}>{value}</div>
     </div>
