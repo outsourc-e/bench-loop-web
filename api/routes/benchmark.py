@@ -25,6 +25,20 @@ RUNS_DIR = FsPath("~/.bench-loop/runs").expanduser()
 # In-memory state for active runs
 _active_runs: dict[str, dict[str, Any]] = {}
 
+# Per-endpoint serial queue: concurrent benchmark requests against the same
+# endpoint (e.g. one Ollama server) used to race and ReadTimeout. We now
+# enqueue them with a per-endpoint asyncio.Lock so one run finishes before the
+# next one starts. Different endpoints (e.g. PC1 Ollama + Studio MLX) still
+# run in parallel.
+_endpoint_locks: dict[str, asyncio.Lock] = {}
+_endpoint_queues: dict[str, list[str]] = {}
+
+
+def _get_endpoint_lock(endpoint: str) -> asyncio.Lock:
+    if endpoint not in _endpoint_locks:
+        _endpoint_locks[endpoint] = asyncio.Lock()
+    return _endpoint_locks[endpoint]
+
 
 class BenchmarkRequest(BaseModel):
     model: str
@@ -56,8 +70,13 @@ async def start_benchmark_route(req: BenchmarkRequest):
         timeout_sec=req.timeout_sec,
     )
 
+    queue = _endpoint_queues.setdefault(req.endpoint, [])
+    queue.append(run_id)
+    position = max(0, len(queue) - 1)
+
     _active_runs[run_id] = {
-        "status": "running",
+        "status": "queued" if position > 0 else "running",
+        "queue_position": position,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "config": {
             "model": req.model,
@@ -74,41 +93,49 @@ async def start_benchmark_route(req: BenchmarkRequest):
         _active_runs[run_id]["events"].append(event)
 
     async def _run():
-        try:
-            result = await run_benchmark(config, on_progress=on_progress)
-            _active_runs[run_id]["status"] = "completed"
-            _active_runs[run_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-            _active_runs[run_id]["result"] = result.to_dict()
-            # Persist to ~/.bench-loop/runs/ so runs survive API restarts and
-            # show up in the leaderboard from disk on cold boot.
+        lock = _get_endpoint_lock(req.endpoint)
+        async with lock:
+            # Promote to running once we own the endpoint lock.
+            _active_runs[run_id]["status"] = "running"
+            _active_runs[run_id]["queue_position"] = 0
             try:
-                saved_path = save_run(result, endpoint=req.endpoint)
-                _active_runs[run_id]["saved_path"] = str(saved_path)
-            except Exception as save_exc:
-                _active_runs[run_id]["events"].append({
-                    "type": "persist_failed",
-                    "error": str(save_exc),
-                })
-        except Exception as exc:
-            import traceback
-            tb = traceback.format_exc()
-            # Many exception types stringify to '' (asyncio CancelledError, some httpx errors).
-            # Fall back to the exception class name + traceback tail so the UI shows something
-            # actionable instead of an empty failure card.
-            err_msg = str(exc) or f"{type(exc).__name__}: {repr(exc)}"
-            _active_runs[run_id]["status"] = "failed"
-            _active_runs[run_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-            _active_runs[run_id]["error"] = err_msg
-            _active_runs[run_id]["traceback"] = tb
-            _active_runs[run_id]["events"].append({
-                "type": "run_failed",
-                "error": err_msg,
-                "exception_class": type(exc).__name__,
-            })
-            print(f"[bench-loop-api] run {run_id} failed:\n{tb}", flush=True)
+                _endpoint_queues[req.endpoint].remove(run_id)
+            except ValueError:
+                pass
+            await _execute_run(run_id, req, config, on_progress)
 
-    asyncio.create_task(_run())
-    return {"run_id": run_id, "status": "started"}
+    asyncio.ensure_future(_run())
+    return {"run_id": run_id, "status": _active_runs[run_id]["status"], "queue_position": position}
+
+
+async def _execute_run(run_id: str, req: "BenchmarkRequest", config: Any, on_progress: Any) -> None:
+    try:
+        result = await run_benchmark(config, on_progress=on_progress)
+        _active_runs[run_id]["status"] = "completed"
+        _active_runs[run_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        _active_runs[run_id]["result"] = result.to_dict()
+        try:
+            saved_path = save_run(result, endpoint=req.endpoint)
+            _active_runs[run_id]["saved_path"] = str(saved_path)
+        except Exception as save_exc:
+            _active_runs[run_id]["events"].append({
+                "type": "persist_failed",
+                "error": str(save_exc),
+            })
+    except Exception as exc:
+        import traceback
+        tb = traceback.format_exc()
+        err_msg = str(exc) or f"{type(exc).__name__}: {repr(exc)}"
+        _active_runs[run_id]["status"] = "failed"
+        _active_runs[run_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        _active_runs[run_id]["error"] = err_msg
+        _active_runs[run_id]["traceback"] = tb
+        _active_runs[run_id]["events"].append({
+            "type": "run_failed",
+            "error": err_msg,
+            "exception_class": type(exc).__name__,
+        })
+        print(f"[bench-loop-api] run {run_id} failed:\n{tb}", flush=True)
 
 
 @router.get("/benchmark/stream/{run_id}")

@@ -5,9 +5,11 @@ import ScoreBadge from '../components/ScoreBadge'
 const ALL_SUITES = [
   { id: 'speed', label: 'Speed', short: 'SPD', color: 'var(--blue)' },
   { id: 'toolcall', label: 'Tool Calling', short: 'TOOL', color: 'var(--accent)' },
+  { id: 'coding', label: 'Coding', short: 'CODE', color: '#5fb7ff' },
   { id: 'dataextract', label: 'Data Extract', short: 'DATA', color: 'var(--yellow)' },
   { id: 'instructfollow', label: 'Instruct Follow', short: 'INST', color: 'var(--orange)' },
   { id: 'reasonmath', label: 'Reason & Math', short: 'MATH', color: '#c084fc' },
+  { id: 'agent', label: 'Agent Loop', short: 'AGENT', color: '#2dd47f' },
 ] as const
 
 const SUITE_META = Object.fromEntries(ALL_SUITES.map((suite) => [suite.id, suite]))
@@ -127,7 +129,8 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
 
   const [selectedModel, setSelectedModel] = useState('')
   const [endpoint, setEndpoint] = useState('http://localhost:11434')
-  const [selectedSuites, setSelectedSuites] = useState<string[]>(['speed', 'toolcall', 'coding', 'dataextract', 'instructfollow', 'reasonmath'])
+  const [selectedSuites, setSelectedSuites] = useState<string[]>(['speed', 'toolcall', 'coding', 'dataextract', 'instructfollow', 'reasonmath', 'agent'])
+  const [selectedHarness, setSelectedHarness] = useState<string>('raw')
   const [running, setRunning] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
   const [events, setEvents] = useState<BenchmarkEvent[]>([])
@@ -235,6 +238,7 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
         endpoint,
         suites: selectedSuites,
         provider: resolvedProviderName,
+        harness: selectedHarness,
       })
       setRunId(run_id)
 
@@ -359,6 +363,45 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
         </div>
 
         <div>
+          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: 6 }}>
+            Harness <span style={{ color: 'var(--text-muted)' }}>— prompt + parse contract for tool calling</span>
+          </label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+            {[
+              { id: 'raw', label: 'Raw', desc: 'Native OpenAI-style tool calling (default)' },
+              { id: 'hermes', label: 'Hermes', desc: '<tool_call>{...}</tool_call> XML tags' },
+              { id: 'qwen', label: 'Qwen', desc: '<function_call>{...}</function_call> tags' },
+              { id: 'pi', label: 'Pi', desc: '<think>...</think> + Hermes tags' },
+            ].map((h) => (
+              <label
+                key={h.id}
+                title={h.desc}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 12px',
+                  borderRadius: 999,
+                  border: `1px solid ${selectedHarness === h.id ? 'var(--accent)' : 'var(--border)'}`,
+                  background: selectedHarness === h.id ? 'var(--accent-soft)' : 'transparent',
+                  cursor: running ? 'not-allowed' : 'pointer',
+                  fontSize: '0.8rem',
+                  fontWeight: selectedHarness === h.id ? 700 : 500,
+                  color: selectedHarness === h.id ? 'var(--accent)' : 'var(--text)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                <input
+                  type="radio"
+                  name="harness"
+                  value={h.id}
+                  checked={selectedHarness === h.id}
+                  onChange={(e) => setSelectedHarness(e.target.value)}
+                  disabled={running}
+                  style={{ display: 'none' }}
+                />
+                {h.label}
+              </label>
+            ))}
+          </div>
           <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-dim)', marginBottom: 6 }}>Suites</label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {ALL_SUITES.map((suite) => (

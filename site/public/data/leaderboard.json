@@ -1,41 +1,105 @@
 {
-  "generated_at": "2026-05-12T17:58:17.305Z",
-  "count": 8,
+  "generated_at": "2026-05-12T19:03:03.148Z",
+  "count": 11,
   "source": "bench-loop local runs",
   "runs": [
     {
-      "id": "20260512-133521-pc1-coder-v2-latest-local-ollama",
-      "timestamp": "2026-05-12T17:31:58.668548+00:00",
+      "id": "20260512-150046-qwen3.6-27b-local-ollama",
+      "timestamp": "2026-05-12T19:00:08.146111+00:00",
+      "model": "qwen3.6:27b",
+      "harness": "raw",
+      "provider": "ollama",
+      "machine": "Apple M1 Pro",
+      "overall_score": 75.15899999999999,
+      "quality_score": 96.88,
+      "speed_score": 0,
+      "reliability_score": 87.5,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 96.88,
+      "agent_pass": 7,
+      "agent_task_count": 8,
+      "suites": {
+        "agent": {
+          "score": 96.88
+        }
+      }
+    },
+    {
+      "id": "20260512-145456-pc1-coder-v2-latest-local-ollama",
+      "timestamp": "2026-05-12T18:54:47.521530+00:00",
       "model": "pc1-coder-v2:latest",
       "harness": "raw",
       "provider": "ollama",
       "machine": "Apple M1 Pro",
-      "overall_score": 74.26136666666667,
-      "quality_score": 73.394,
-      "speed_score": 86.14,
-      "reliability_score": 66.66666666666666,
-      "generation_tok_per_sec": 111.33429160232788,
-      "ttft_ms": 104.20951111111111,
-      "is_full_benchmark": true,
-      "is_quality_full": true,
+      "overall_score": 75.15899999999999,
+      "quality_score": 96.88,
+      "speed_score": 0,
+      "reliability_score": 87.5,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 96.88,
+      "agent_pass": 7,
+      "agent_task_count": 8,
       "suites": {
-        "speed": {
-          "score": 86.14
-        },
-        "toolcall": {
-          "score": 66.67
-        },
-        "coding": {
-          "score": 91.67
-        },
-        "dataextract": {
-          "score": 87.53
-        },
-        "instructfollow": {
-          "score": 47.77
-        },
-        "reasonmath": {
-          "score": 73.33
+        "agent": {
+          "score": 96.88
+        }
+      }
+    },
+    {
+      "id": "20260512-150212-OsaurusAI-MiniMax-M2.7-Small-JANGTQ-local-openai_compat",
+      "timestamp": "2026-05-12T18:55:54.574965+00:00",
+      "model": "OsaurusAI/MiniMax-M2.7-Small-JANGTQ",
+      "harness": "raw",
+      "provider": "openai_compat",
+      "machine": "Apple M1 Pro",
+      "overall_score": 75.15899999999999,
+      "quality_score": 96.88,
+      "speed_score": 0,
+      "reliability_score": 87.5,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 96.88,
+      "agent_pass": 7,
+      "agent_task_count": 8,
+      "suites": {
+        "agent": {
+          "score": 96.88
+        }
+      }
+    },
+    {
+      "id": "20260512-145608-pc1-coder-latest-local-ollama",
+      "timestamp": "2026-05-12T18:56:02.244590+00:00",
+      "model": "pc1-coder:latest",
+      "harness": "raw",
+      "provider": "ollama",
+      "machine": "Apple M1 Pro",
+      "overall_score": 75.15899999999999,
+      "quality_score": 96.88,
+      "speed_score": 0,
+      "reliability_score": 87.5,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 96.88,
+      "agent_pass": 7,
+      "agent_task_count": 8,
+      "suites": {
+        "agent": {
+          "score": 96.88
         }
       }
     },
@@ -54,6 +118,10 @@
       "ttft_ms": 108.04354444444444,
       "is_full_benchmark": true,
       "is_quality_full": true,
+      "is_agent_only": false,
+      "agent_score": null,
+      "agent_pass": null,
+      "agent_task_count": null,
       "suites": {
         "speed": {
           "score": 78.88
@@ -76,35 +144,52 @@
       }
     },
     {
-      "id": "2026-05-12T023106.943210+0000-qwen3.6-27b-raw",
-      "timestamp": "2026-05-12T02:31:06.943210+00:00",
-      "model": "qwen3.6:27b",
-      "harness": "raw",
+      "id": "20260512-141932-qwen3-8b-local-ollama",
+      "timestamp": "2026-05-12T18:19:05.674358+00:00",
+      "model": "qwen3:8b",
+      "harness": "hermes",
       "provider": "ollama",
       "machine": "Apple M1 Pro",
-      "overall_score": 62.9067693236715,
-      "quality_score": 74.41833333333334,
-      "speed_score": 42.85444444444445,
-      "reliability_score": 53.62318840579711,
-      "generation_tok_per_sec": 20.63,
-      "ttft_ms": 107.23,
-      "is_full_benchmark": true,
-      "is_quality_full": true,
+      "overall_score": 70.3125,
+      "quality_score": 93.75,
+      "speed_score": 0,
+      "reliability_score": 75,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 93.75,
+      "agent_pass": 6,
+      "agent_task_count": 8,
       "suites": {
-        "speed": {
-          "score": 42.85444444444445
-        },
-        "toolcall": {
-          "score": 55.580000000000005
-        },
-        "dataextract": {
-          "score": 94.53333333333333
-        },
-        "instructfollow": {
-          "score": 72.22666666666667
-        },
-        "reasonmath": {
-          "score": 75.33333333333333
+        "agent": {
+          "score": 93.75
+        }
+      }
+    },
+    {
+      "id": "20260512-141928-qwen3-8b-local-ollama",
+      "timestamp": "2026-05-12T18:19:05.768140+00:00",
+      "model": "qwen3:8b",
+      "harness": "qwen",
+      "provider": "ollama",
+      "machine": "Apple M1 Pro",
+      "overall_score": 70.3125,
+      "quality_score": 93.75,
+      "speed_score": 0,
+      "reliability_score": 75,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 93.75,
+      "agent_pass": 6,
+      "agent_task_count": 8,
+      "suites": {
+        "agent": {
+          "score": 93.75
         }
       }
     },
@@ -123,6 +208,10 @@
       "ttft_ms": 158.33927777777777,
       "is_full_benchmark": true,
       "is_quality_full": true,
+      "is_agent_only": false,
+      "agent_score": null,
+      "agent_pass": null,
+      "agent_task_count": null,
       "suites": {
         "speed": {
           "score": 100
@@ -142,104 +231,27 @@
       }
     },
     {
-      "id": "20260512-135606-qwen3-8b-local-ollama",
-      "timestamp": "2026-05-12T17:50:47.855258+00:00",
-      "model": "qwen3:8b",
-      "harness": "qwen",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 58.001022222222225,
-      "quality_score": 76.416,
-      "speed_score": 0,
-      "reliability_score": 63.888888888888886,
-      "generation_tok_per_sec": 0,
-      "ttft_ms": 0,
-      "is_full_benchmark": false,
-      "is_quality_full": true,
-      "suites": {
-        "toolcall": {
-          "score": 91.67
-        },
-        "coding": {
-          "score": 100
-        },
-        "dataextract": {
-          "score": 69.75
-        },
-        "instructfollow": {
-          "score": 46.66
-        },
-        "reasonmath": {
-          "score": 74
-        }
-      }
-    },
-    {
-      "id": "20260512-135605-qwen3-8b-local-ollama",
-      "timestamp": "2026-05-12T17:50:47.954491+00:00",
-      "model": "qwen3:8b",
-      "harness": "hermes",
-      "provider": "ollama",
-      "machine": "Apple M1 Pro",
-      "overall_score": 57.194722222222225,
-      "quality_score": 74.95,
-      "speed_score": 0,
-      "reliability_score": 63.888888888888886,
-      "generation_tok_per_sec": 0,
-      "ttft_ms": 0,
-      "is_full_benchmark": false,
-      "is_quality_full": true,
-      "suites": {
-        "toolcall": {
-          "score": 91.67
-        },
-        "coding": {
-          "score": 100
-        },
-        "dataextract": {
-          "score": 69.75
-        },
-        "instructfollow": {
-          "score": 46.66
-        },
-        "reasonmath": {
-          "score": 66.67
-        }
-      }
-    },
-    {
-      "id": "20260512-135341-OsaurusAI-MiniMax-M2.7-Small-JANGTQ-local-openai_compat",
-      "timestamp": "2026-05-12T16:43:15.993055+00:00",
-      "model": "OsaurusAI/MiniMax-M2.7-Small-JANGTQ",
+      "id": "20260512-150104-pc1-critic-latest-local-ollama",
+      "timestamp": "2026-05-12T19:00:52.699165+00:00",
+      "model": "pc1-critic:latest",
       "harness": "raw",
-      "provider": "openai_compat",
+      "provider": "ollama",
       "machine": "Apple M1 Pro",
-      "overall_score": 50.62902098765432,
-      "quality_score": 50.714,
-      "speed_score": 50.41,
-      "reliability_score": 50.617283950617285,
-      "generation_tok_per_sec": 15.617782013939827,
+      "overall_score": 50.93750000000001,
+      "quality_score": 81.25,
+      "speed_score": 0,
+      "reliability_score": 25,
+      "generation_tok_per_sec": 0,
       "ttft_ms": 0,
-      "is_full_benchmark": true,
-      "is_quality_full": true,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 81.25,
+      "agent_pass": 2,
+      "agent_task_count": 8,
       "suites": {
-        "speed": {
-          "score": 50.41
-        },
-        "toolcall": {
-          "score": 83.33
-        },
-        "coding": {
-          "score": 25
-        },
-        "dataextract": {
-          "score": 29.68
-        },
-        "instructfollow": {
-          "score": 68.89
-        },
-        "reasonmath": {
-          "score": 46.67
+        "agent": {
+          "score": 81.25
         }
       }
     },
@@ -258,6 +270,10 @@
       "ttft_ms": 72.37697666666666,
       "is_full_benchmark": true,
       "is_quality_full": true,
+      "is_agent_only": false,
+      "agent_score": null,
+      "agent_pass": null,
+      "agent_task_count": null,
       "suites": {
         "speed": {
           "score": 83.13
@@ -276,6 +292,31 @@
         },
         "reasonmath": {
           "score": 34
+        }
+      }
+    },
+    {
+      "id": "20260512-141650-qwen3-8b-local-ollama",
+      "timestamp": "2026-05-12T18:16:35.643838+00:00",
+      "model": "qwen3:8b",
+      "harness": "pi",
+      "provider": "ollama",
+      "machine": "Apple M1 Pro",
+      "overall_score": 30.937500000000004,
+      "quality_score": 56.25,
+      "speed_score": 0,
+      "reliability_score": 0,
+      "generation_tok_per_sec": 0,
+      "ttft_ms": 0,
+      "is_full_benchmark": false,
+      "is_quality_full": false,
+      "is_agent_only": true,
+      "agent_score": 56.25,
+      "agent_pass": 0,
+      "agent_task_count": 8,
+      "suites": {
+        "agent": {
+          "score": 56.25
         }
       }
     }

@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useLeaderboard, type PublicRun } from '../hooks/useLeaderboard'
 
-type RankMode = 'overall' | 'quality' | 'speed' | 'tok_per_sec'
+type RankMode = 'overall' | 'agent' | 'quality' | 'speed' | 'tok_per_sec'
 
 const RANK_MODES: { id: RankMode; label: string }[] = [
   { id: 'overall', label: 'Overall' },
+  { id: 'agent', label: 'Agent loop' },
   { id: 'quality', label: 'Quality' },
   { id: 'speed', label: 'Speed' },
   { id: 'tok_per_sec', label: 'Raw tok/s' },
@@ -16,6 +17,7 @@ function scoreClass(score: number): string {
 
 function scoreOf(run: PublicRun, mode: RankMode): number {
   switch (mode) {
+    case 'agent': return run.agent_score ?? -1
     case 'quality': return run.quality_score
     case 'speed': return run.speed_score
     case 'tok_per_sec': return run.generation_tok_per_sec
@@ -32,6 +34,7 @@ export default function LeaderboardPage() {
   const ranked = useMemo(() => {
     const filtered = runs.filter((r) => {
       if (search && !r.model.toLowerCase().includes(search.toLowerCase())) return false
+      if (mode === 'agent') return (r.agent_score ?? -1) >= 0
       if (scope === 'full' && !r.is_full_benchmark) return false
       return true
     })
@@ -92,9 +95,9 @@ export default function LeaderboardPage() {
                 <th>#</th>
                 <th>Model</th>
                 <th>Harness</th>
-                <th>Provider</th>
                 <th>Machine</th>
                 <th style={{ textAlign: 'right' }}>Overall</th>
+                <th style={{ textAlign: 'right' }}>Agent</th>
                 <th style={{ textAlign: 'right' }}>Quality</th>
                 <th style={{ textAlign: 'right' }}>Speed</th>
                 <th style={{ textAlign: 'right' }}>Tok/s</th>
@@ -106,9 +109,13 @@ export default function LeaderboardPage() {
                   <td className="lb-score">{i + 1}</td>
                   <td><strong>{r.model}</strong></td>
                   <td>{r.harness || 'raw'}</td>
-                  <td>{r.provider || '—'}</td>
-                  <td>{r.machine || '—'}</td>
+                  <td>{r.machine || r.provider || '—'}</td>
                   <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.overall_score)}`}>{r.overall_score.toFixed(1)}</span></td>
+                  <td style={{ textAlign: 'right' }}>
+                    {r.agent_score != null && r.agent_score >= 0
+                      ? <span className={`lb-score ${scoreClass(r.agent_score)}`}>{r.agent_score.toFixed(1)}</span>
+                      : <span className="lb-score" style={{ color: 'var(--text-muted)' }}>—</span>}
+                  </td>
                   <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.quality_score)}`}>{r.quality_score.toFixed(1)}</span></td>
                   <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.speed_score)}`}>{r.speed_score.toFixed(1)}</span></td>
                   <td style={{ textAlign: 'right' }} className="lb-score">{r.generation_tok_per_sec.toFixed(1)}</td>

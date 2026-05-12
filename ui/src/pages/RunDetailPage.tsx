@@ -173,6 +173,11 @@ export default function RunDetailPage() {
         </table>
       </div>
 
+      {/* Agent suite: show per-task trace */}
+      {suites.agent && Array.isArray(suites.agent.tasks) && (
+        <AgentTrace suite={suites.agent} />
+      )}
+
       {/* Speed metrics + machine */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
         <div className="card" style={{ padding: 16 }}>
@@ -222,6 +227,120 @@ function KV({ label, value }: { label: string; value: string }) {
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: '0.82rem', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
       <span style={{ color: 'var(--text-dim)' }}>{label}</span>
       <span style={{ fontFamily: 'var(--mono)' }}>{value}</span>
+    </div>
+  )
+}
+
+/**
+ * Agent suite trace viewer. Each task is collapsible; expanding it shows the
+ * model’s turn-by-turn conversation including the actual tools BenchLoop
+ * executed and what they returned.
+ */
+function AgentTrace({ suite }: { suite: any }) {
+  return (
+    <div className="card" style={{ padding: 0, marginBottom: 16, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <div style={{ ...headStyle, padding: 0, marginBottom: 4 }}>Agent suite trace</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>
+            Click a task to see the model’s actual turn-by-turn conversation and the tools BenchLoop executed for it.
+          </div>
+        </div>
+        <ScoreBadge score={suite.score || 0} size="md" />
+      </div>
+      <div style={{ padding: 4 }}>
+        {suite.tasks.map((task: any) => {
+          const meta = task.metadata || {}
+          const components = meta.agent_components || {}
+          const turns = meta.turns || []
+          const halluc = meta.hallucinated_tools || []
+          const passed = task.passed
+          return (
+            <details key={task.task_id} style={{ borderBottom: '1px solid var(--border)' }}>
+              <summary style={{
+                cursor: 'pointer',
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                fontSize: '0.85rem',
+              }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: 99,
+                  background: passed ? '#7fd99a' : '#ff8888',
+                  boxShadow: passed ? '0 0 8px #7fd99a' : '0 0 8px #ff8888',
+                }} />
+                <strong style={{ fontFamily: 'var(--mono)', fontSize: '0.78rem' }}>{task.task_id}</strong>
+                <span style={{ color: 'var(--text-dim)' }}>{turns.length} turns · {meta.tool_calls_total || 0} tool calls · stop: {meta.stop_reason || '?'}</span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <ComponentBadge label="answer" ok={components.correct_final === 25} />
+                  <ComponentBadge label="efficient" ok={components.efficient === 25} />
+                  <ComponentBadge label="no halluc" ok={components.no_hallucinated_tools === 25} />
+                  <ComponentBadge label="required" ok={components.all_required_called === 25} />
+                </span>
+                <ScoreBadge score={task.score || 0} size="sm" />
+              </summary>
+              <div style={{ padding: '8px 14px 14px 24px', background: 'rgba(255,255,255,0.018)' }}>
+                {halluc.length > 0 && (
+                  <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 6, padding: '6px 10px', marginBottom: 10, fontSize: '0.78rem', color: '#ff9999' }}>
+                    Hallucinated tools: <code>{halluc.join(', ')}</code>
+                  </div>
+                )}
+                {turns.map((t: any, i: number) => (
+                  <TurnRow key={i} turn={t} />
+                ))}
+              </div>
+            </details>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ComponentBadge({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <span style={{
+      fontSize: '0.66rem',
+      fontWeight: 700,
+      padding: '2px 7px',
+      borderRadius: 999,
+      border: `1px solid ${ok ? 'rgba(127,217,154,0.4)' : 'rgba(255,136,136,0.4)'}`,
+      color: ok ? '#7fd99a' : '#ff8888',
+      background: ok ? 'rgba(127,217,154,0.07)' : 'rgba(255,136,136,0.07)',
+    }}>
+      {ok ? '✓' : '✗'} {label}
+    </span>
+  )
+}
+
+function TurnRow({ turn }: { turn: any }) {
+  const role = turn.role || 'unknown'
+  const tone = role === 'user' ? '#9ec5ff' : role === 'assistant' ? '#7fd99a' : '#f6c143'
+  const labelText = role === 'tool' ? `tool: ${turn.tool_name || '?'}` : role
+  return (
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '120px 1fr',
+      gap: 12,
+      padding: '8px 0',
+      borderBottom: '1px solid rgba(255,255,255,0.04)',
+      alignItems: 'start',
+      fontSize: '0.8rem',
+    }}>
+      <div style={{ color: tone, fontFamily: 'var(--mono)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+        {labelText}
+      </div>
+      <div style={{ color: 'var(--text)' }}>
+        {role === 'tool' && turn.tool_args && (
+          <div style={{ color: 'var(--text-dim)', fontFamily: 'var(--mono)', fontSize: '0.72rem', marginBottom: 4 }}>
+            args: {JSON.stringify(turn.tool_args)}
+          </div>
+        )}
+        <div style={{ whiteSpace: 'pre-wrap', fontFamily: role === 'tool' ? 'var(--mono)' : 'inherit', fontSize: role === 'tool' ? '0.78rem' : '0.82rem', color: role === 'tool' ? '#e0d49a' : 'inherit' }}>
+          {turn.content || (turn.tool_result ? turn.tool_result : '—')}
+        </div>
+      </div>
     </div>
   )
 }

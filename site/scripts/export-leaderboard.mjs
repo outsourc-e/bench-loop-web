@@ -67,10 +67,11 @@ for (const { id, dir } of entries) {
     const suiteNames = Object.keys(suites)
     const isFull = [...REQUIRED_FULL].every((s) => suiteNames.includes(s))
     const isQualityFull = [...REQUIRED_QUALITY].every((s) => suiteNames.includes(s))
+    const isAgentOnly = suiteNames.length === 1 && suiteNames[0] === 'agent'
 
-    // Default: keep full benchmarks AND harness-comparison runs (quality_full).
-    // --all opts in to every run.
-    if (!includeAll && !isFull && !isQualityFull) continue
+    // Default: keep full benchmarks, harness-comparison quality runs, and
+    // agent-only runs (which now power the agent leaderboard tab).
+    if (!includeAll && !isFull && !isQualityFull && !isAgentOnly) continue
     if (!includeLegacy && data.timestamp && data.timestamp < MIN_TS) continue
 
     // Strip filesystem paths from model names (legacy lmstudio runs leaked the
@@ -95,6 +96,10 @@ for (const { id, dir } of entries) {
       ttft_ms: data.speed_metrics?.ttft_ms || 0,
       is_full_benchmark: isFull,
       is_quality_full: isQualityFull,
+      is_agent_only: isAgentOnly,
+      agent_score: suites.agent?.score ?? null,
+      agent_pass: suites.agent?.pass_count ?? null,
+      agent_task_count: suites.agent?.task_count ?? null,
       suites: Object.fromEntries(
         Object.entries(suites).map(([k, v]) => [k, { score: v.score || 0 }])
       ),

@@ -13,6 +13,11 @@ export interface PublicRun {
   generation_tok_per_sec: number
   ttft_ms: number
   is_full_benchmark: boolean
+  is_quality_full?: boolean
+  is_agent_only?: boolean
+  agent_score?: number | null
+  agent_pass?: number | null
+  agent_task_count?: number | null
   suites: Record<string, { score: number }>
 }
 
