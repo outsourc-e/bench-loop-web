@@ -117,12 +117,17 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
   const { runs, refresh: refreshRuns } = useRuns()
 
   const allModels = (modelsData?.providers || []).flatMap((p) =>
-    p.models.map((m) => ({ ...m, providerUrl: p.url, providerLabel: p.label }))
+    p.models.map((m) => ({
+      ...m,
+      providerUrl: p.url,
+      providerLabel: p.label,
+      providerType: p.type, // 'ollama' or 'openai' (OpenAI-compatible like Osaurus/LM Studio/vLLM)
+    }))
   )
 
   const [selectedModel, setSelectedModel] = useState('')
   const [endpoint, setEndpoint] = useState('http://localhost:11434')
-  const [selectedSuites, setSelectedSuites] = useState<string[]>(['speed', 'toolcall', 'dataextract', 'instructfollow', 'reasonmath'])
+  const [selectedSuites, setSelectedSuites] = useState<string[]>(['speed', 'toolcall', 'coding', 'dataextract', 'instructfollow', 'reasonmath'])
   const [running, setRunning] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
   const [events, setEvents] = useState<BenchmarkEvent[]>([])
@@ -134,6 +139,15 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
     const match = allModels.find((m) => m.name === selectedModel)
     if (match) setEndpoint(match.providerUrl)
   }, [selectedModel, allModels])
+
+  // Resolve which provider/harness to send to the API based on the selected
+  // model's source. 'ollama' → ollama provider. 'openai' → openai_compat
+  // (covers LM Studio, vLLM, Osaurus/MLX, Jan, etc.). Falls back to ollama.
+  const resolvedProviderName = (() => {
+    const match = allModels.find((m) => m.name === selectedModel)
+    if (!match) return 'ollama'
+    return match.providerType === 'openai' ? 'openai_compat' : 'ollama'
+  })()
 
   useEffect(() => {
     if (preselectedModel) {
@@ -186,11 +200,21 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
       // Preflight unreachable — fall through to raw chat probe
     }
 
+    // Health probe: ollama uses /api/chat, openai-compat uses /v1/chat/completions.
+    // Skip the probe entirely if the preflight already greenlit the model (preflight
+    // call above would have set error and returned if it failed).
     try {
-      const healthResp = await fetch(endpoint.replace(/\/$/, '') + '/api/chat', {
+      const isOpenAI = resolvedProviderName === 'openai_compat'
+      const probeUrl = isOpenAI
+        ? endpoint.replace(/\/$/, '') + '/v1/chat/completions'
+        : endpoint.replace(/\/$/, '') + '/api/chat'
+      const probeBody = isOpenAI
+        ? { model: selectedModel, messages: [{ role: 'user', content: 'Say ok' }], max_tokens: 4 }
+        : { model: selectedModel, messages: [{ role: 'user', content: 'Say ok' }], stream: false }
+      const healthResp = await fetch(probeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: selectedModel, messages: [{ role: 'user', content: 'Say ok' }], stream: false }),
+        body: JSON.stringify(probeBody),
       })
       if (!healthResp.ok) {
         const errText = await healthResp.text().catch(() => healthResp.statusText)
@@ -210,6 +234,7 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
         model: selectedModel,
         endpoint,
         suites: selectedSuites,
+        provider: resolvedProviderName,
       })
       setRunId(run_id)
 

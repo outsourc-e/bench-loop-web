@@ -1,13 +1,21 @@
 """BenchLoop API — FastAPI backend for local LLM benchmarking."""
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
-# Ensure bench-loop package is importable
-bench_loop_root = Path(__file__).resolve().parent.parent.parent / "bench-loop"
+# Canonical bench-loop lives in the live workspace, NOT in this backup tree.
+# The old relative-path resolver picked up the stale `workspace.pre-symlink-backup-...`
+# copy which had a different RunConfig schema and the LT-XX task IDs. Override.
+_default_bench_loop = "/Users/aurora/.ocplatform/workspace/bench-loop"
+bench_loop_root = Path(os.environ.get("BENCH_LOOP_DIR", _default_bench_loop)).resolve()
+if not (bench_loop_root / "bench_loop").is_dir():
+    # Fall back to the historical relative path if the canonical one is missing.
+    bench_loop_root = (Path(__file__).resolve().parent.parent.parent / "bench-loop").resolve()
 if str(bench_loop_root) not in sys.path:
     sys.path.insert(0, str(bench_loop_root))
+print(f"[bench-loop-api] using bench_loop from: {bench_loop_root}", flush=True)
 
 # Ensure api package root is importable for routes
 api_root = Path(__file__).resolve().parent
@@ -17,7 +25,7 @@ if str(api_root) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import benchmark, hardware, health, models
+from routes import benchmark, chat, hardware, health, models
 
 app = FastAPI(title="BenchLoop", version="0.1.0")
 
@@ -33,3 +41,4 @@ app.include_router(health.router, prefix="/api")
 app.include_router(models.router, prefix="/api")
 app.include_router(benchmark.router, prefix="/api")
 app.include_router(hardware.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")

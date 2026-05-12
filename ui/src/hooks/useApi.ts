@@ -106,6 +106,9 @@ export interface RunSummary {
   id: string
   timestamp: string
   model: string
+  quantization?: string
+  family?: string
+  parameter_count?: string
   overall_score: number
   quality_score: number
   speed_score: number
@@ -113,7 +116,11 @@ export interface RunSummary {
   value_score?: number
   total_runtime_sec: number
   suites: Record<string, { score: number; pass_count: number; task_count: number }>
+  suite_count?: number
+  suite_names?: string[]
+  is_full_benchmark?: boolean
   provider: string
+  backend?: string
   harness?: string
   machine: string
   gpu?: string
@@ -124,6 +131,42 @@ export interface RunSummary {
   generation_tok_per_sec?: number
   prompt_eval_tok_per_sec?: number
   ttft_ms?: number
+}
+
+export interface ChatMetric {
+  latencyMs: number
+  ttftMs: number
+  promptTokens: number
+  completionTokens: number
+  tokensPerSecond: number
+  model: string
+  provider: string
+  endpoint: string
+  harness: string
+}
+
+export interface ChatResponse {
+  message: { role: 'assistant'; content: string }
+  metrics: ChatMetric
+}
+
+export async function chatGenerate(params: {
+  model: string
+  endpoint: string
+  provider: string
+  prompt: string
+  system?: string
+}): Promise<ChatResponse> {
+  const resp = await fetch('/api/chat/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  })
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(`chat failed: ${resp.status} ${text}`)
+  }
+  return resp.json()
 }
 
 export function useHardware() {
@@ -280,6 +323,8 @@ export async function startBenchmark(params: {
   model: string
   endpoint: string
   suites: string[]
+  provider?: string
+  harness?: string
 }): Promise<{ run_id: string }> {
   const resp = await fetch('/api/benchmark/run', {
     method: 'POST',

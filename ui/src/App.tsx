@@ -4,6 +4,9 @@ import ModelsTab from './tabs/ModelsTab'
 import BenchmarkTab from './tabs/BenchmarkTab'
 import ChatTab from './tabs/ChatTab'
 import LeaderboardTab from './tabs/LeaderboardTab'
+import StackLeaderboardTab from './tabs/StackLeaderboardTab'
+import RunDetailPage from './pages/RunDetailPage'
+import ComparePage from './pages/ComparePage'
 import './App.css'
 
 export default function App() {
@@ -22,6 +25,8 @@ export default function App() {
     { to: '/chat', label: 'Chat' },
     { to: '/benchmark', label: 'Benchmark' },
     { to: '/leaderboard', label: 'Leaderboard' },
+    { to: '/compare', label: 'Compare' },
+    { to: '/stacks', label: 'Stacks' },
   ]
 
   return (
@@ -62,6 +67,9 @@ export default function App() {
             }
           />
           <Route path="/leaderboard" element={<LeaderboardTab />} />
+          <Route path="/stacks" element={<StackLeaderboardTab />} />
+          <Route path="/runs/:runId" element={<RunDetailPage />} />
+          <Route path="/compare" element={<ComparePage />} />
         </Routes>
       </main>
     </div>

@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from bench_loop.config import RunConfig
 from bench_loop.runner.orchestrator import run_benchmark
+from bench_loop.runner.result_writer import save_run
 from bench_loop.models import BenchmarkRun
 
 router = APIRouter()
@@ -29,7 +30,7 @@ class BenchmarkRequest(BaseModel):
     model: str
     endpoint: str = "http://localhost:11434"
     provider: str = "ollama"
-    suites: list[str] = Field(default_factory=lambda: ["speed", "toolcall", "dataextract", "instructfollow", "reasonmath"])
+    suites: list[str] = Field(default_factory=lambda: ["speed", "toolcall", "coding", "dataextract", "instructfollow", "reasonmath"])
     harness: str = "raw"
     runs: int = 3
     timeout_sec: float = 300.0
@@ -38,13 +39,20 @@ class BenchmarkRequest(BaseModel):
 @router.post("/benchmark/run")
 async def start_benchmark_route(req: BenchmarkRequest):
     run_id = str(uuid.uuid4())[:8]
-    config = RunConfig(
+    # Use a plain namespace to stay compatible with multiple RunConfig schemas
+    # (the canonical bench_loop uses `base_url`/`suites`/`trials`; the legacy one
+    # used `endpoint`/`suite_names`/`runs`). The orchestrator handles both.
+    from types import SimpleNamespace
+    config = SimpleNamespace(
         model=req.model,
         provider=req.provider,
         endpoint=req.endpoint,
+        base_url=req.endpoint,
         harness=req.harness,
         suite_names=req.suites,
+        suites=req.suites,
         runs=req.runs,
+        trials=req.runs,
         timeout_sec=req.timeout_sec,
     )
 
@@ -69,9 +77,21 @@ async def start_benchmark_route(req: BenchmarkRequest):
         try:
             result = await run_benchmark(config, on_progress=on_progress)
             _active_runs[run_id]["status"] = "completed"
+            _active_runs[run_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             _active_runs[run_id]["result"] = result.to_dict()
+            # Persist to ~/.bench-loop/runs/ so runs survive API restarts and
+            # show up in the leaderboard from disk on cold boot.
+            try:
+                saved_path = save_run(result, endpoint=req.endpoint)
+                _active_runs[run_id]["saved_path"] = str(saved_path)
+            except Exception as save_exc:
+                _active_runs[run_id]["events"].append({
+                    "type": "persist_failed",
+                    "error": str(save_exc),
+                })
         except Exception as exc:
             _active_runs[run_id]["status"] = "failed"
+            _active_runs[run_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
             _active_runs[run_id]["error"] = str(exc)
             _active_runs[run_id]["events"].append({
                 "type": "run_failed",
@@ -116,6 +136,16 @@ async def list_runs(limit: int = Query(default=50, le=200)):
     if not RUNS_DIR.exists():
         return {"runs": []}
 
+    # "Full benchmark" = at least these quality suites + speed. Coding is bonus.
+    REQUIRED_FULL_SUITES = {"speed", "toolcall", "dataextract", "instructfollow", "reasonmath"}
+
+    import math
+    def _recompute_speed_score(tok_per_sec: float) -> float:
+        """Match bench_loop.suites.speed v2 curve so older runs use the new scale."""
+        if tok_per_sec <= 0:
+            return 0.0
+        return min(100.0, max(0.0, 12.54 * math.log2(tok_per_sec) + 0.9))
+
     runs = []
     dirs = sorted(RUNS_DIR.iterdir(), reverse=True)
     for d in dirs[:limit]:
@@ -124,16 +154,36 @@ async def list_runs(limit: int = Query(default=50, le=200)):
             continue
         try:
             data = json.loads(run_file.read_text())
+            model_obj = data.get("model", {}) or {}
             machine = data.get("machine", {}) or {}
             speed_metrics = data.get("speed_metrics", {}) or {}
+            suite_map = data.get("suites", {}) or {}
+            suite_names = list(suite_map.keys())
+            is_full = REQUIRED_FULL_SUITES.issubset(set(suite_names))
+
+            # Recompute speed score from tok/s using the v2 curve so historical
+            # runs (which used the old 25*log2 capped-at-100 curve) display
+            # comparably to new runs.
+            gen_tok_per_sec = speed_metrics.get("generation_tok_per_sec", 0) or 0
+            recomputed_speed = _recompute_speed_score(gen_tok_per_sec)
+            speed_score_v2 = recomputed_speed
+            # Recompute overall using new speed score (quality/reliability unchanged).
+            quality_v2 = data.get("quality_score", 0)
+            reliability_v2 = data.get("reliability_score", 0)
+            overall_v2 = 0.55 * quality_v2 + 0.20 * speed_score_v2 + 0.25 * reliability_v2
             runs.append({
                 "id": d.name,
                 "timestamp": data.get("timestamp", ""),
-                "model": data.get("model", {}).get("model_id", "unknown"),
-                "overall_score": data.get("overall_score", 0),
-                "quality_score": data.get("quality_score", 0),
-                "speed_score": data.get("speed_score", 0),
-                "reliability_score": data.get("reliability_score", 0),
+                "model": model_obj.get("model_id", "unknown"),
+                "quantization": model_obj.get("quantization", "") or "",
+                "family": model_obj.get("family", "") or "",
+                "parameter_count": model_obj.get("parameter_count", "") or "",
+                "overall_score": overall_v2,
+                "quality_score": quality_v2,
+                "speed_score": speed_score_v2,
+                "reliability_score": reliability_v2,
+                "overall_score_raw": data.get("overall_score", 0),
+                "speed_score_raw": data.get("speed_score", 0),
                 "value_score": data.get("value_score", 0),
                 "total_runtime_sec": data.get("total_runtime_sec", 0),
                 "harness": data.get("harness", "raw"),
@@ -143,9 +193,13 @@ async def list_runs(limit: int = Query(default=50, le=200)):
                         "pass_count": s.get("pass_count", 0),
                         "task_count": s.get("task_count", 0),
                     }
-                    for name, s in data.get("suites", {}).items()
+                    for name, s in suite_map.items()
                 },
+                "suite_count": len(suite_names),
+                "suite_names": suite_names,
+                "is_full_benchmark": is_full,
                 "provider": data.get("provider", ""),
+                "backend": machine.get("backend", data.get("provider", "")),
                 "machine": machine.get("machine_id", ""),
                 "gpu": machine.get("gpu", ""),
                 "gpu_memory_gb": machine.get("gpu_memory_gb", 0),
