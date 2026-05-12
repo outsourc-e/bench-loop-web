@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#06090a"/>
+      <stop offset="100%" stop-color="#0c1212"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.8" cy="0.1" r="0.6">
+      <stop offset="0%" stop-color="#2dd47f" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#2dd47f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="tile" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#5fe09e"/>
+      <stop offset="100%" stop-color="#11864b"/>
+    </linearGradient>
+    <linearGradient id="grad-text" x1="0" x2="1">
+      <stop offset="0%" stop-color="#2dd47f"/>
+      <stop offset="100%" stop-color="#baf7d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <!-- Logo tile -->
+  <rect x="80" y="80" width="100" height="100" rx="24" fill="url(#tile)"/>
+  <path d="M150 105 a25 25 0 1 0 25 25" fill="none" stroke="#04140b" stroke-width="10" stroke-linecap="round"/>
+  <path d="M150 105 L162 96 M150 105 L162 117" stroke="#04140b" stroke-width="10" stroke-linecap="round"/>
+  <!-- Text -->
+  <text x="220" y="155" font-family="Inter,-apple-system,sans-serif" font-size="56" font-weight="800" fill="#fff" letter-spacing="-1.5">BenchLoop</text>
+  <text x="80" y="320" font-family="Inter,-apple-system,sans-serif" font-size="92" font-weight="800" fill="#eef4ef" letter-spacing="-3">Benchmark local LLMs</text>
+  <text x="80" y="420" font-family="Inter,-apple-system,sans-serif" font-size="92" font-weight="800" fill="url(#grad-text)" letter-spacing="-3">by what actually matters.</text>
+  <text x="80" y="500" font-family="JetBrains Mono,SF Mono,monospace" font-size="32" font-weight="600" fill="#93a39a">Quality + Speed + Reliability + Agent loop</text>
+  <text x="80" y="555" font-family="JetBrains Mono,SF Mono,monospace" font-size="24" font-weight="600" fill="#5b6c63">$ pipx install benchloop</text>
+</svg>
