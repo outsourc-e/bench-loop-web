@@ -97,8 +97,8 @@ export default function LeaderboardPage() {
       )}
 
       {/* Filter bar */}
-      <div className="card" style={{ padding: 14, marginTop: 8, marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div className="card lb-filters">
+        <div className="lb-rank-modes">
           {RANK_MODES.map((m) => (
             <button
               key={m.id}
@@ -110,22 +110,24 @@ export default function LeaderboardPage() {
             </button>
           ))}
         </div>
-        <input
-          type="search"
-          placeholder="Search model"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ minWidth: 200, maxWidth: 280, marginLeft: 'auto' }}
-        />
-        <select value={harnessFilter} onChange={(e) => setHarnessFilter(e.target.value as HarnessFilter)} style={{ maxWidth: 160 }}>
-          {HARNESSES.map((h) => (
-            <option key={h} value={h}>{h === 'all' ? 'All harnesses' : `${h} harness`}</option>
-          ))}
-        </select>
-        <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')} style={{ maxWidth: 220 }}>
-          <option value="full">Full benchmarks only</option>
-          <option value="all">All scopes</option>
-        </select>
+        <div className="lb-filter-controls">
+          <input
+            type="search"
+            placeholder="Search model…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="lb-search"
+          />
+          <select value={harnessFilter} onChange={(e) => setHarnessFilter(e.target.value as HarnessFilter)}>
+            {HARNESSES.map((h) => (
+              <option key={h} value={h}>{h === 'all' ? 'All harnesses' : `${h} harness`}</option>
+            ))}
+          </select>
+          <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')}>
+            <option value="full">Full benchmarks only</option>
+            <option value="all">All scopes</option>
+          </select>
+        </div>
       </div>
 
       {loading && <div className="card">Loading public runs…</div>}
@@ -164,12 +166,8 @@ export default function LeaderboardPage() {
                   <td className="lb-score">{i + 1}</td>
                   <td>
                     <strong>{r.model}</strong>
-                    {r.is_full_benchmark && (
-                      <span style={{ marginLeft: 8, fontSize: '0.65rem', padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.12)', color: '#22c55e', verticalAlign: 'middle' }}>FULL</span>
-                    )}
-                    {r.is_agent_only && (
-                      <span style={{ marginLeft: 8, fontSize: '0.65rem', padding: '2px 6px', borderRadius: 4, background: 'rgba(168,85,247,0.12)', color: '#a855f7', verticalAlign: 'middle' }}>AGENT</span>
-                    )}
+                    {r.is_full_benchmark && <span className="lb-badge full">FULL</span>}
+                    {r.is_agent_only && <span className="lb-badge agent">AGENT</span>}
                   </td>
                   <td><code>{r.harness || 'raw'}</code></td>
                   <td title={`${r.cpu || ''}${r.gpu ? ' / ' + r.gpu : ''}${r.gpu_memory_gb ? ' / ' + r.gpu_memory_gb + 'GB VRAM' : ''}`}>

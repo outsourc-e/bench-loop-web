@@ -690,6 +690,61 @@
   font-size: 0.85em;
 }
 
+/* Leaderboard */
+.lb-filters {
+  padding: 14px;
+  margin-top: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.lb-rank-modes {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.lb-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
+}
+
+.lb-filter-controls input,
+.lb-filter-controls select {
+  min-width: 0;
+}
+
+.lb-search {
+  width: 220px;
+  max-width: 100%;
+}
+
+.lb-filter-controls select {
+  min-width: 150px;
+}
+
+@media (max-width: 640px) {
+  .lb-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lb-filter-controls {
+    margin-left: 0;
+    width: 100%;
+  }
+  .lb-search,
+  .lb-filter-controls select {
+    width: 100%;
+  }
+}
+
 /* Leaderboard table */
 .lb-card {
   padding: 0;
@@ -698,6 +753,7 @@
 
 .lb-table {
   width: 100%;
+  min-width: 980px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.86rem;
@@ -738,6 +794,29 @@
 .lb-score.yellow { color: var(--yellow); }
 .lb-score.red { color: var(--red); }
 
+.lb-badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  vertical-align: middle;
+  letter-spacing: 0.06em;
+}
+
+.lb-badge.full {
+  background: rgba(45, 212, 127, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(45, 212, 127, 0.25);
+}
+
+.lb-badge.agent {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
 /* Download */
 .download-grid {
   display: grid;
@@ -774,7 +853,10 @@
   overflow-x: auto;
   font-family: var(--mono);
   font-size: 0.78rem;
+  color: var(--text);
   margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Footer */
