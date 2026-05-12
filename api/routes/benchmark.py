@@ -90,13 +90,22 @@ async def start_benchmark_route(req: BenchmarkRequest):
                     "error": str(save_exc),
                 })
         except Exception as exc:
+            import traceback
+            tb = traceback.format_exc()
+            # Many exception types stringify to '' (asyncio CancelledError, some httpx errors).
+            # Fall back to the exception class name + traceback tail so the UI shows something
+            # actionable instead of an empty failure card.
+            err_msg = str(exc) or f"{type(exc).__name__}: {repr(exc)}"
             _active_runs[run_id]["status"] = "failed"
             _active_runs[run_id]["completed_at"] = datetime.now(timezone.utc).isoformat()
-            _active_runs[run_id]["error"] = str(exc)
+            _active_runs[run_id]["error"] = err_msg
+            _active_runs[run_id]["traceback"] = tb
             _active_runs[run_id]["events"].append({
                 "type": "run_failed",
-                "error": str(exc),
+                "error": err_msg,
+                "exception_class": type(exc).__name__,
             })
+            print(f"[bench-loop-api] run {run_id} failed:\n{tb}", flush=True)
 
     asyncio.create_task(_run())
     return {"run_id": run_id, "status": "started"}

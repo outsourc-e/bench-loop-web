@@ -7,6 +7,8 @@ interface RunDetail {
   error?: string | null
   result?: any
   hardware?: any
+  traceback?: string
+  events?: any[]
 }
 
 const cellStyle: React.CSSProperties = { padding: '8px 12px' }
@@ -28,12 +30,33 @@ export default function RunDetailPage() {
 
   useEffect(() => {
     if (!runId) return
+    let cancelled = false
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
+
+    const fetchOnce = async () => {
+      try {
+        const r = await fetch(`/api/benchmark/runs/${runId}`)
+        const d = await r.json()
+        if (cancelled) return
+        setData(d)
+        // Auto-poll while the run is still active so the UI updates in real-time.
+        if (d.status === 'running' || d.status === 'pending') {
+          pollTimer = setTimeout(fetchOnce, 2500)
+        }
+      } catch {
+        if (!cancelled) setData({ error: 'Failed to load run' })
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
     setLoading(true)
-    fetch(`/api/benchmark/runs/${runId}`)
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .catch(() => setData({ error: 'Failed to load run' }))
-      .finally(() => setLoading(false))
+    fetchOnce()
+
+    return () => {
+      cancelled = true
+      if (pollTimer) clearTimeout(pollTimer)
+    }
   }, [runId])
 
   if (loading) {
@@ -59,6 +82,8 @@ export default function RunDetailPage() {
 
   // Run data shape: on completed runs from disk it's r.result; on active runs it could be r itself.
   const run = data.result || data
+  const isFailed = data.status === 'failed' || !!data.error
+  const isRunning = data.status === 'running'
   const model = run.model?.model_id || run.model || 'unknown'
   const suites = run.suites || {}
   const sm = run.speed_metrics || {}
@@ -66,6 +91,29 @@ export default function RunDetailPage() {
 
   return (
     <div>
+      {isFailed && (
+        <div className="card" style={{ padding: 16, marginBottom: 16, borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.06)' }}>
+          <div style={{ color: '#ff8888', fontWeight: 700, marginBottom: 6 }}>Run failed</div>
+          <div style={{ color: 'var(--text)', fontSize: '0.88rem', marginBottom: 10 }}>
+            {data.error || 'Unknown failure'}
+          </div>
+          {data.traceback && (
+            <details>
+              <summary style={{ cursor: 'pointer', color: 'var(--text-dim)', fontSize: '0.8rem' }}>Show traceback</summary>
+              <pre style={{ marginTop: 8, padding: 10, background: 'rgba(0,0,0,0.4)', borderRadius: 6, fontSize: '0.72rem', overflow: 'auto', maxHeight: 360 }}>{data.traceback}</pre>
+            </details>
+          )}
+        </div>
+      )}
+
+      {isRunning && (
+        <div className="card" style={{ padding: 12, marginBottom: 16, borderColor: 'rgba(45,212,127,0.35)', background: 'rgba(45,212,127,0.05)' }}>
+          <div style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '0.88rem' }}>
+            ⏵ Run in progress — page auto-refreshes when complete.
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <button
