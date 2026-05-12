@@ -1,6 +1,6 @@
 # BenchLoop Web
 
-The web surface for [BenchLoop](https://benchloop.com) — a local-first benchmark suite for LLM models that scores **quality, speed, and reliability** across six fixed task suites (`speed`, `toolcall`, `coding`, `dataextract`, `instructfollow`, `reasonmath`).
+The web surface for [BenchLoop](https://bench-loop.com) — a local-first benchmark suite for LLM models that scores **quality, speed, and reliability** across seven fixed task suites (`speed`, `toolcall`, `coding`, `dataextract`, `instructfollow`, `reasonmath`, `agent`).
 
 Pick a model on any reachable endpoint (Ollama, LM Studio, Osaurus, vLLM, oMLX, Jan, or any OpenAI-compatible server), pick the suites, hit Run, watch live progress, then compare results in the leaderboard.
 
@@ -93,7 +93,7 @@ Wrap the same task in different prompt/parse contracts so you can A/B "this mode
 - ✅ Speed-score v2 curve (anchored on real M-series/RTX reference points)
 - ✅ Preflight model-load check with actionable diagnostics
 - ⏳ True streaming TTFT (currently 0 for openai_compat; requires streaming pass)
-- ⏳ Hosted leaderboard at benchloop.com
+- ⏳ Hosted leaderboard at bench-loop.com
 - ⏳ Community submission flow
 
 ## License

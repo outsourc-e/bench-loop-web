@@ -1,4 +1,4 @@
-# Cloudflare Pages config for benchloop.com
+# Cloudflare Pages config for bench-loop.com
 # Run: `wrangler pages deploy dist --project-name=benchloop`
 name = "benchloop"
 compatibility_date = "2026-05-12"

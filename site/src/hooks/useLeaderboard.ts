@@ -22,11 +22,14 @@ export interface PublicRun {
 }
 
 /**
- * Fetch the static published leaderboard JSON. The hosted site never talks to
- * a backend — runs are exported from the local app and committed/uploaded to
- * /public/data/leaderboard.json. This keeps benchloop.com deployable as a
- * static bundle on Vercel/Cloudflare/Fly static.
+ * Fetch the public leaderboard. Primary source is the Cloudflare Worker at
+ * api.bench-loop.com/leaderboard, which is populated by the local BenchLoop
+ * CLI auto-submitting completed runs. Falls back to the static JSON bundled
+ * with the site (useful for offline / first-deploy / API outage).
  */
+const API_URL = 'https://api.bench-loop.com/leaderboard'
+const FALLBACK_URL = '/data/leaderboard.json'
+
 export function useLeaderboard() {
   const [runs, setRuns] = useState<PublicRun[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,16 +37,25 @@ export function useLeaderboard() {
 
   useEffect(() => {
     let cancelled = false
-    fetch('/data/leaderboard.json', { cache: 'no-cache' })
-      .then((r) => r.json())
-      .then((d) => {
-        if (cancelled) return
-        const list: PublicRun[] = (d.runs || []).slice().sort((a: PublicRun, b: PublicRun) => (b.overall_score || 0) - (a.overall_score || 0))
-        setRuns(list)
-      })
-      .catch((e) => {
-        if (!cancelled) setError(String(e))
-      })
+    const load = async () => {
+      for (const url of [API_URL, FALLBACK_URL]) {
+        try {
+          const r = await fetch(url, { cache: 'no-cache' })
+          if (!r.ok) continue
+          const d = await r.json()
+          if (cancelled) return
+          const list: PublicRun[] = (d.runs || [])
+            .slice()
+            .sort((a: PublicRun, b: PublicRun) => (b.overall_score || 0) - (a.overall_score || 0))
+          setRuns(list)
+          return
+        } catch {
+          /* try next */
+        }
+      }
+      if (!cancelled) setError('Failed to load leaderboard')
+    }
+    load()
       .finally(() => {
         if (!cancelled) setLoading(false)
       })

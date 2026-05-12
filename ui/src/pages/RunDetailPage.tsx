@@ -190,13 +190,16 @@ export default function RunDetailPage() {
         </div>
         <div className="card" style={{ padding: 16 }}>
           <div style={{ ...headStyle, padding: 0, marginBottom: 8 }}>Machine</div>
-          <KV label="Machine ID" value={machine.machine_id || '—'} />
-          <KV label="CPU" value={machine.cpu || '—'} />
-          <KV label="GPU" value={machine.gpu || '—'} />
+          <KV label="CPU" value={machine.cpu || (machine.is_remote ? 'remote host' : '—')} />
+          <KV label="GPU" value={machine.gpu || (machine.is_remote ? 'remote host' : '—')} />
           <KV label="GPU memory" value={machine.gpu_memory_gb ? `${machine.gpu_memory_gb} GB` : '—'} />
           <KV label="System memory" value={machine.system_memory_gb ? `${machine.system_memory_gb} GB` : '—'} />
           <KV label="OS" value={machine.os || '—'} />
           <KV label="Backend" value={machine.backend || run.provider || '—'} />
+          {machine.is_remote && machine.remote_host && (
+            <KV label="Remote host" value={String(machine.remote_host)} />
+          )}
+          <KV label="Machine ID" value={machine.machine_id || '—'} />
         </div>
       </div>
 

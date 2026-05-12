@@ -82,7 +82,7 @@ export default function LeaderboardPage() {
         <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>
           <strong style={{ color: 'var(--text)' }}>No published runs yet.</strong>
           <p style={{ marginTop: 6 }}>
-            Run BenchLoop locally, export, and submit a PR to populate this leaderboard.
+            Install BenchLoop and run any benchmark — every completed run auto-publishes here.
           </p>
         </div>
       )}

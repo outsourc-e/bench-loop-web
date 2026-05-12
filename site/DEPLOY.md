@@ -1,4 +1,4 @@
-# Deploying benchloop.com
+# Deploying bench-loop.com
 
 This site is fully static. Anywhere that serves static files works.
 
@@ -24,7 +24,7 @@ npm run build
 - **Build command:** `npm run build`
 - **Build output:** `dist`
 - **Environment variables:** none needed.
-- Once green, add the custom domain `benchloop.com` (and `www.benchloop.com`) under the project's **Custom domains** tab. Cloudflare handles DNS + TLS automatically.
+- Once green, add the custom domain `bench-loop.com` (and `www.bench-loop.com`) under the project's **Custom domains** tab. Cloudflare handles DNS + TLS automatically.
 
 ### Option B — Vercel
 
@@ -32,7 +32,7 @@ npm run build
 - Framework preset: **Vite**
 - Build command: `npm run build`
 - Output directory: `dist`
-- Add `benchloop.com` to **Domains**, point the apex `A` record at Vercel's IPs and `www` CNAME at `cname.vercel-dns.com`.
+- Add `bench-loop.com` to **Domains**, point the apex `A` record at Vercel's IPs and `www` CNAME at `cname.vercel-dns.com`.
 
 ### Option C — Fly.io static site
 
@@ -41,15 +41,15 @@ flyctl launch --no-deploy
 # pick a name, no DB, no http checks
 flyctl deploy
 ```
-Then add `benchloop.com` via `flyctl certs create benchloop.com`.
+Then add `bench-loop.com` via `flyctl certs create bench-loop.com`.
 
 ## DNS records
 
 Whichever host you pick, you'll need:
 
 ```
-benchloop.com.        A      <host IPs>
-www.benchloop.com.    CNAME  <host CNAME target>
+bench-loop.com.        A      <host IPs>
+www.bench-loop.com.    CNAME  <host CNAME target>
 ```
 
 For Cloudflare Pages the apex can be a flattened `CNAME` to `<project>.pages.dev`.

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Public marketing site for benchloop.com — static, no backend dependency.",
+  "description": "Public marketing site for bench-loop.com — static, no backend dependency.",
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5181",
     "build": "tsc -b && vite build",

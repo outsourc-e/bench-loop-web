@@ -1,0 +1,21 @@
+name = "bench-loop-api"
+main = "src/index.ts"
+compatibility_date = "2026-05-01"
+
+# api.bench-loop.com — public submit + leaderboard endpoint
+# Routes are added after the bench-loop.com zone activates in CF.
+# Add via: wrangler deploy then `wrangler triggers deploy` or dashboard.
+routes = [
+  { pattern = "api.bench-loop.com", custom_domain = true },
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "bench-loop"
+database_id = "62cbcfca-fe7b-416c-94e3-860e732cf4ca"
+
+[vars]
+ENVIRONMENT = "production"
+# Comma-separated list of trusted submit sources. Empty = anyone can submit.
+# We rate-limit + dedupe by run_id so abuse is bounded.
+ALLOWED_ORIGINS = "*"

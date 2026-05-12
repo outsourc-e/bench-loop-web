@@ -1,12 +1,16 @@
 const sections = [
   { id: 'overview', label: 'Overview' },
-  { id: 'install', label: 'Install' },
+  { id: 'install', label: 'Install CLI' },
+  { id: 'dashboard', label: 'Local dashboard' },
+  { id: 'backends', label: 'Pick a backend' },
   { id: 'run', label: 'Run a benchmark' },
   { id: 'suites', label: 'Suites' },
   { id: 'harnesses', label: 'Harnesses' },
   { id: 'scoring', label: 'Scoring' },
   { id: 'publish', label: 'Publish a run' },
   { id: 'api', label: 'API' },
+  { id: 'troubleshoot', label: 'Troubleshooting' },
+  { id: 'links', label: 'Links' },
 ]
 
 export default function DocsPage() {
@@ -32,7 +36,7 @@ export default function DocsPage() {
             <h2>Overview</h2>
             <p>
               BenchLoop is a local-first benchmark suite for LLMs. It pits any model running on your hardware
-              against six fixed task suites and produces a single comparable run: <strong>quality, speed, and
+              against seven fixed task suites and produces a single comparable run: <strong>quality, speed, and
               reliability</strong>, plus per-task receipts.
             </p>
             <p>It supports every common local backend:</p>
@@ -43,17 +47,74 @@ export default function DocsPage() {
           </section>
 
           <section id="install">
-            <h2>Install</h2>
-            <p>Recommended is <code>pipx</code>, which keeps BenchLoop isolated and on PATH:</p>
-            <pre>{`pipx install benchloop
+            <h2>Install the CLI</h2>
+            <p>Recommended path — <code>pipx</code> keeps BenchLoop isolated and on PATH:</p>
+            <pre>{`pipx install benchloop-cli
 benchloop --version`}</pre>
-            <p>Other install methods are on the <a href="/download">Download</a> page.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              The PyPI distribution is <strong>benchloop-cli</strong>. Installed console commands are <code>benchloop</code> and <code>bench-loop</code>.
+            </p>
+
+            <h3>No pipx? On macOS:</h3>
+            <pre>{`python3 -m pip install --user --break-system-packages pipx
+python3 -m pipx ensurepath
+# open a new terminal window, then:
+pipx install benchloop-cli`}</pre>
+
+            <h3>Plain pip</h3>
+            <pre>{`pip install benchloop-cli`}</pre>
+
+            <h3>From source (for development)</h3>
+            <pre>{`git clone https://github.com/outsourc-e/bench-loop
+cd bench-loop
+pip install -e .`}</pre>
+
+            <h3>Verify</h3>
+            <pre>{`benchloop info       # lists installed suites + harnesses
+benchloop --version  # 0.1.1`}</pre>
+          </section>
+
+          <section id="dashboard">
+            <h2>Local web dashboard</h2>
+            <p>
+              The CLI is enough to benchmark, score, and auto-publish. If you want the
+              visual dashboard (Models / Benchmark / Leaderboard / Compare / Chat tabs)
+              running on <code>127.0.0.1:5180</code>, clone the web app repo and start it.
+            </p>
+            <pre>{`# Clone both repos side-by-side
+git clone https://github.com/outsourc-e/bench-loop
+git clone https://github.com/outsourc-e/bench-loop-web
+
+# Start the dashboard (API + UI)
+cd bench-loop-web
+./start.sh`}</pre>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              The dashboard auto-discovers models on <code>localhost:11434</code> (Ollama),
+              <code>localhost:1234</code> (LM Studio), <code>localhost:8000</code> (MLX/Osaurus / vLLM), and any other endpoints you add.
+            </p>
+          </section>
+
+          <section id="backends">
+            <h2>Pick a backend</h2>
+            <p>BenchLoop runs against any local OpenAI-compatible or Ollama endpoint:</p>
+            <ul>
+              <li><strong>Ollama</strong> — <code>http://localhost:11434</code> — default. <code>--provider ollama</code></li>
+              <li><strong>LM Studio</strong> — <code>http://localhost:1234</code> — <code>--provider openai_compat</code></li>
+              <li><strong>MLX / Osaurus</strong> — <code>http://localhost:8000</code> — <code>--provider openai_compat</code></li>
+              <li><strong>vLLM</strong> — <code>--provider openai_compat</code></li>
+              <li><strong>Jan</strong> — <code>--provider openai_compat</code></li>
+              <li><strong>llama.cpp / llama-server</strong> — <code>--provider openai_compat</code></li>
+            </ul>
+            <p>Pull a model first if you're on a fresh Ollama install:</p>
+            <pre>{`ollama pull qwen3:8b
+# or something smaller:
+ollama pull qwen3:1.7b`}</pre>
           </section>
 
           <section id="run">
             <h2>Run a benchmark</h2>
             <p>
-              Pick a model that already exists on a local endpoint, then run all six suites:
+              Pick a model that already exists on a local endpoint, then run all seven suites:
             </p>
             <pre>{`benchloop run \\
   --model qwen3:8b \\
@@ -110,26 +171,73 @@ benchloop --version`}</pre>
 
           <section id="publish">
             <h2>Publish a run</h2>
-            <p>Export your local runs to the public leaderboard format:</p>
-            <pre>{`benchloop export --output ~/.bench-loop/exports/my-runs.json
-# then open a PR against outsourc-e/bench-loop with your JSON`}</pre>
             <p>
-              The published JSON is what powers the <a href="/leaderboard">/leaderboard</a> page on this site.
+              Every completed benchmark auto-publishes to the public leaderboard at <code>api.bench-loop.com/submit</code>.
+              Runs are deduped by machine id + run id so the same run from the same machine won't be double-counted.
+            </p>
+            <p>To opt out of auto-publishing, set:</p>
+            <pre>{`export BENCHLOOP_NO_SUBMIT=1`}</pre>
+            <p>
+              You can still manually export local runs as a static leaderboard JSON file:
+            </p>
+            <pre>{`benchloop export --output ./my-runs.json`}</pre>
+            <p>
+              The public board lives at <a href="/leaderboard">/leaderboard</a>.
             </p>
           </section>
 
           <section id="api">
-            <h2>Local API</h2>
-            <p>The local web app at <code>http://127.0.0.1:5180</code> is backed by a FastAPI server at <code>:8877</code>.</p>
+            <h2>APIs</h2>
+            <p><strong>Local API</strong> — <code>http://127.0.0.1:8877</code> when the dashboard is running:</p>
             <ul>
               <li><code>GET  /api/health</code></li>
               <li><code>GET  /api/models?endpoint=…</code></li>
               <li><code>POST /api/benchmark/run</code></li>
+              <li><code>POST /api/benchmark/cancel/{'{runId}'}</code></li>
               <li><code>GET  /api/benchmark/stream/{'{runId}'}</code> (SSE)</li>
               <li><code>GET  /api/benchmark/runs</code></li>
               <li><code>GET  /api/benchmark/runs/{'{runId}'}</code></li>
             </ul>
-            <p>Full schema in the source repo.</p>
+            <p style={{ marginTop: 18 }}><strong>Public API</strong> — <code>https://api.bench-loop.com</code>:</p>
+            <ul>
+              <li><code>POST /submit</code> — publish a run (called automatically by CLI)</li>
+              <li><code>GET  /leaderboard</code> — best run per (model, harness)</li>
+              <li><code>GET  /runs/{'{id}'}</code> — fetch a specific submitted run</li>
+            </ul>
+          </section>
+
+          <section id="troubleshoot">
+            <h2>Troubleshooting</h2>
+            <h3><code>Model '...' not found on http://localhost:11434</code></h3>
+            <p>Your Ollama instance doesn't have that model pulled. Pull it:</p>
+            <pre>{`ollama pull qwen3:8b`}</pre>
+            <p>Or list what you do have: <code>ollama list</code>.</p>
+
+            <h3><code>Cannot reach endpoint</code> / connection refused</h3>
+            <ul>
+              <li>Ollama running? <code>ollama serve</code> in another terminal.</li>
+              <li>LM Studio? Open the app and toggle the local server on.</li>
+              <li>Wrong port? Pass <code>--endpoint http://localhost:1234</code> (or your actual host).</li>
+            </ul>
+
+            <h3>Stop auto-publishing</h3>
+            <pre>{`export BENCHLOOP_NO_SUBMIT=1`}</pre>
+
+            <h3>Reset everything</h3>
+            <pre>{`rm -rf ~/.bench-loop/runs    # delete local run history
+pipx reinstall benchloop-cli  # reinstall the CLI`}</pre>
+          </section>
+
+          <section id="links">
+            <h2>Links</h2>
+            <ul>
+              <li>CLI repo: <a href="https://github.com/outsourc-e/bench-loop" target="_blank" rel="noreferrer">github.com/outsourc-e/bench-loop</a></li>
+              <li>Web app repo: <a href="https://github.com/outsourc-e/bench-loop-web" target="_blank" rel="noreferrer">github.com/outsourc-e/bench-loop-web</a></li>
+              <li>PyPI: <a href="https://pypi.org/project/benchloop-cli/" target="_blank" rel="noreferrer">pypi.org/project/benchloop-cli</a></li>
+              <li>Public leaderboard: <a href="/leaderboard">/leaderboard</a></li>
+              <li>Public API: <a href="https://api.bench-loop.com/health" target="_blank" rel="noreferrer">api.bench-loop.com</a></li>
+              <li>License: MIT</li>
+            </ul>
           </section>
         </div>
       </div>

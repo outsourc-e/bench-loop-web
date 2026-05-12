@@ -1,0 +1,16 @@
+{
+  "name": "bench-loop-api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "db:init": "wrangler d1 execute bench-loop --remote --file=schema.sql",
+    "db:local": "wrangler d1 execute bench-loop --local --file=schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240924.0",
+    "typescript": "^5.5.0",
+    "wrangler": "^4.0.0"
+  }
+}

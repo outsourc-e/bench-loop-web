@@ -104,8 +104,31 @@ async def start_benchmark_route(req: BenchmarkRequest):
                 pass
             await _execute_run(run_id, req, config, on_progress)
 
-    asyncio.ensure_future(_run())
+    task = asyncio.ensure_future(_run())
+    _active_runs[run_id]["task"] = task
     return {"run_id": run_id, "status": _active_runs[run_id]["status"], "queue_position": position}
+
+
+@router.post("/benchmark/cancel/{run_id}")
+async def cancel_benchmark(run_id: str):
+    """Cancel an in-flight benchmark run."""
+    state = _active_runs.get(run_id)
+    if not state:
+        return {"ok": False, "error": "run not found"}
+    if state.get("status") in ("completed", "failed", "cancelled"):
+        return {"ok": True, "already": state["status"]}
+    task: asyncio.Task | None = state.get("task")
+    if task and not task.done():
+        task.cancel()
+    state["status"] = "cancelled"
+    state["completed_at"] = datetime.now(timezone.utc).isoformat()
+    state["error"] = "Cancelled by user"
+    state["events"].append({"type": "cancelled", "reason": "user requested"})
+    # Drop from queue if still queued
+    queue = _endpoint_queues.get(state.get("config", {}).get("endpoint", ""), [])
+    if run_id in queue:
+        queue.remove(run_id)
+    return {"ok": True, "status": "cancelled"}
 
 
 async def _execute_run(run_id: str, req: "BenchmarkRequest", config: Any, on_progress: Any) -> None:
@@ -122,6 +145,11 @@ async def _execute_run(run_id: str, req: "BenchmarkRequest", config: Any, on_pro
                 "type": "persist_failed",
                 "error": str(save_exc),
             })
+    except asyncio.CancelledError:
+        # User cancelled — already marked in cancel_benchmark, but make sure.
+        if _active_runs[run_id]["status"] not in ("completed", "failed"):
+            _active_runs[run_id]["status"] = "cancelled"
+        raise
     except Exception as exc:
         import traceback
         tb = traceback.format_exc()
@@ -157,7 +185,7 @@ async def stream_benchmark(run_id: str):
                 yield f"data: {json.dumps(events[last_idx])}\n\n"
                 last_idx += 1
 
-            if run_state["status"] in ("completed", "failed"):
+            if run_state["status"] in ("completed", "failed", "cancelled"):
                 yield f"data: {json.dumps({'type': 'done', 'status': run_state['status']})}\n\n"
                 break
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const command = 'pipx install benchloop && benchloop run --model qwen3:8b'
+const command = 'pipx install benchloop-cli && benchloop run --model qwen3:8b'
 
 export default function CliInstall() {
   const [copied, setCopied] = useState(false)

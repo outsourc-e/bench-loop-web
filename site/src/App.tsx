@@ -64,13 +64,13 @@ export default function App() {
           <div>
             <LoopLogo size={22} />
             <strong>BenchLoop</strong>
-            <span>© 2026 OpenClaw Labs</span>
+            <span>© 2026 BenchLoop</span>
           </div>
           <div className="site-footer-links">
             <a href="https://github.com/outsourc-e/bench-loop" target="_blank" rel="noreferrer">GitHub</a>
             <Link to="/docs">Docs</Link>
             <Link to="/leaderboard">Leaderboard</Link>
-            <a href="mailto:hi@benchloop.com">Contact</a>
+            <a href="mailto:hi@bench-loop.com">Contact</a>
           </div>
         </div>
       </footer>

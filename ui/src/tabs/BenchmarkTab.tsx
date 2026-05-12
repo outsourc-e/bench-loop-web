@@ -291,9 +291,10 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
     }
   }
 
-  useEffect(() => {
-    eventsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [events])
+  // Note: we intentionally do NOT auto-scroll the event log. Newest events
+  // render at the top (slice(-12).reverse()), so the user always sees the
+  // latest activity without their viewport getting yanked around.
+  void eventsEndRef
 
   const progressState = useMemo(() => deriveProgressState(events, selectedSuites), [events, selectedSuites])
 
@@ -440,14 +441,36 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
           </div>
         </div>
 
-        <button
-          className="btn btn-primary"
-          onClick={handleRun}
-          disabled={running || !selectedModel || selectedSuites.length === 0}
-          style={{ alignSelf: 'flex-start', padding: '10px 24px' }}
-        >
-          {running ? 'Running...' : 'Run Benchmark'}
-        </button>
+        <div style={{ display: 'flex', gap: 10, alignSelf: 'flex-start' }}>
+          <button
+            className="btn btn-primary"
+            onClick={handleRun}
+            disabled={running || !selectedModel || selectedSuites.length === 0}
+            style={{ padding: '10px 24px' }}
+          >
+            {running ? 'Running…' : 'Run Benchmark'}
+          </button>
+          {running && runId && (
+            <button
+              className="btn btn-secondary"
+              onClick={async () => {
+                try {
+                  await fetch(`/api/benchmark/cancel/${runId}`, { method: 'POST' })
+                } catch {
+                  /* fall through — SSE will pick up cancelled status */
+                }
+              }}
+              style={{
+                padding: '10px 18px',
+                background: 'rgba(239,68,68,0.12)',
+                border: '1px solid rgba(239,68,68,0.4)',
+                color: 'var(--red, #ef4444)',
+              }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
 
       {(running || result || error || events.length > 0) && (

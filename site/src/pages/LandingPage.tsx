@@ -31,19 +31,19 @@ const howSteps: { num: string; title: string; body: string; code?: string }[] = 
     num: '01',
     title: 'Install the CLI',
     body: 'One pipx command. No Docker, no API keys, no signup.',
-    code: 'pipx install benchloop',
+    code: 'pipx install benchloop-cli',
   },
   {
     num: '02',
     title: 'Run the loop',
-    body: 'Point at any local endpoint — Ollama, LM Studio, MLX, vLLM. Six suites, one run.',
+    body: 'Point at any local endpoint — Ollama, LM Studio, MLX, vLLM. Seven suites, one run.',
     code: 'benchloop run --model qwen3:8b',
   },
   {
     num: '03',
     title: 'Compare + publish',
-    body: 'Browse in the local web app. Export to JSON. Submit your run to the public leaderboard.',
-    code: 'benchloop export --output ./runs.json',
+    body: 'Every completed run auto-publishes to the public leaderboard at bench-loop.com so others can compare against your hardware.',
+    code: '→ published to https://bench-loop.com/leaderboard',
   },
 ]
 
@@ -111,7 +111,7 @@ export default function LandingPage() {
             </div>
             <div className="terminal-progress"><span style={{ width: '83%' }} /></div>
             <div className="terminal-foot">
-              <span className="dot live" /> 6 suites · raw harness · persisted to <code>~/.bench-loop/runs</code>
+              <span className="dot live" /> 7 suites · {best?.harness || 'raw'} harness · persisted to <code>~/.bench-loop/runs</code>
             </div>
           </div>
         </div>
@@ -231,7 +231,7 @@ export default function LandingPage() {
           <div className="page-kicker">Ship path</div>
           <h2>Ready to publish your own runs?</h2>
           <p>
-            Run locally, export to JSON, open a PR against the public leaderboard. Reproducibility is the whole point.
+            Run locally. Every completed benchmark auto-publishes to the public leaderboard, with full per-suite scores and hardware info. Reproducibility is the whole point.
           </p>
         </div>
         <div className="launch-actions">

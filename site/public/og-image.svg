@@ -20,5 +20,5 @@
   <text x="72" y="320" font-family="Inter,Arial,sans-serif" font-size="84" font-weight="800" fill="#eef4ef" letter-spacing="-3">Benchmark local LLMs</text>
   <text x="72" y="420" font-family="Inter,Arial,sans-serif" font-size="84" font-weight="800" fill="url(#grad-text)" letter-spacing="-3">by what actually matters.</text>
   <text x="72" y="500" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="30" font-weight="600" fill="#93a39a">Speed + Quality + Reliability + Agent loop</text>
-  <text x="72" y="555" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="24" font-weight="600" fill="#5b6c63">$ pipx install benchloop</text>
+  <text x="72" y="555" font-family="ui-monospace,Menlo,Consolas,monospace" font-size="24" font-weight="600" fill="#5b6c63">$ pipx install benchloop-cli</text>
 </svg>

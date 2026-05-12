@@ -4,13 +4,13 @@ import CliInstall from '../components/CliInstall'
 const cliInstalls = [
   {
     title: 'pipx (recommended)',
-    body: 'Isolated Python install, available as the `benchloop` command on PATH.',
-    code: 'pipx install benchloop',
+    body: 'Isolated Python install, exposes the `benchloop` and `bench-loop` commands on PATH. The PyPI distribution is named `benchloop-cli`.',
+    code: 'pipx install benchloop-cli',
   },
   {
     title: 'pip',
     body: 'For environments that already have a Python venv.',
-    code: 'pip install benchloop',
+    code: 'pip install benchloop-cli',
   },
   {
     title: 'From source',
@@ -21,14 +21,19 @@ const cliInstalls = [
 
 const cloneInstalls = [
   {
-    title: 'Clone + run',
-    body: 'Run the full BenchLoop stack — CLI plus local web app — from source.',
-    code: 'git clone https://github.com/outsourc-e/bench-loop\ncd bench-loop\nmake dev',
+    title: '1. Clone both repos',
+    body: 'CLI plus the web dashboard. Clone them side by side.',
+    code: 'git clone https://github.com/outsourc-e/bench-loop\ngit clone https://github.com/outsourc-e/bench-loop-web',
   },
   {
-    title: 'Docker (coming soon)',
-    body: 'Single-container BenchLoop with the local API and web UI bundled.',
-    code: 'docker run --rm -it -p 5180:5180 -p 8877:8877 \\\n  -v $HOME/.bench-loop:/root/.bench-loop \\\n  local docker build',
+    title: '2. Install the CLI (editable)',
+    body: 'Editable install — best if you want to hack on suites.',
+    code: 'cd bench-loop\npip install -e .',
+  },
+  {
+    title: '3. Start the dashboard',
+    body: 'Boots the FastAPI backend on :8877 and the Vite dev server on :5180.',
+    code: 'cd ../bench-loop-web\n./start.sh',
   },
 ]
 
@@ -38,12 +43,12 @@ export default function DownloadPage() {
       <div className="page-kicker">Download</div>
       <h1>Install BenchLoop.</h1>
       <p className="page-subtitle">
-        BenchLoop ships as a CLI for benchmarks and as a local web app for visualization. Pick whichever fits.
+        BenchLoop ships as a CLI for benchmarks and as a local web dashboard for visualization. Pick whichever fits.
       </p>
 
       <section style={{ marginTop: 32 }}>
         <h2>Quickstart</h2>
-        <p className="page-subtitle">Install, then run your first benchmark in one go.</p>
+        <p className="page-subtitle">One pipx command, then run a benchmark.</p>
         <div style={{ marginTop: 16 }}>
           <CliInstall />
         </div>
@@ -65,7 +70,8 @@ export default function DownloadPage() {
       <section style={{ marginTop: 48 }}>
         <h2>Run the full stack locally</h2>
         <p className="page-subtitle">
-          The same CLI + the local web dashboard (Models, Benchmark, Leaderboard, Compare, Chat).
+          The CLI is enough on its own. If you also want the local dashboard — Models, Benchmark,
+          Leaderboard, Compare, Chat — clone both repos and start it.
         </p>
         <div className="download-grid">
           {cloneInstalls.map((m) => (
@@ -76,6 +82,30 @@ export default function DownloadPage() {
             </div>
           ))}
         </div>
+        <p style={{ marginTop: 14, fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+          After <code>./start.sh</code>: open <a href="http://127.0.0.1:5180" target="_blank" rel="noreferrer">http://127.0.0.1:5180</a>. The dashboard auto-discovers Ollama, LM Studio, MLX/Osaurus, and any OpenAI-compatible endpoint.
+        </p>
+      </section>
+
+      <section style={{ marginTop: 48 }}>
+        <h2>Source code</h2>
+        <div className="download-grid">
+          <div className="download-card">
+            <h3>CLI &amp; suites</h3>
+            <p>Python package with all benchmark suites, harnesses, scorers, and the orchestrator.</p>
+            <pre>{`github.com/outsourc-e/bench-loop`}</pre>
+          </div>
+          <div className="download-card">
+            <h3>Web dashboard</h3>
+            <p>FastAPI backend + React UI. Wraps the CLI with a live dashboard.</p>
+            <pre>{`github.com/outsourc-e/bench-loop-web`}</pre>
+          </div>
+          <div className="download-card">
+            <h3>PyPI package</h3>
+            <p>Published as <code>benchloop-cli</code>. License MIT.</p>
+            <pre>{`pypi.org/project/benchloop-cli`}</pre>
+          </div>
+        </div>
       </section>
 
       <section style={{ marginTop: 48 }}>
@@ -84,7 +114,7 @@ export default function DownloadPage() {
           <div className="feature-card card">
             <div className="feature-icon">⌘</div>
             <h3><code>benchloop</code> CLI</h3>
-            <p>Single-binary benchmark runner with JSON output, persisted runs, and scriptable defaults.</p>
+            <p>Single-command benchmark runner with JSON output, persisted runs, and scriptable defaults.</p>
           </div>
           <div className="feature-card card">
             <div className="feature-icon">▦</div>
@@ -93,8 +123,8 @@ export default function DownloadPage() {
           </div>
           <div className="feature-card card">
             <div className="feature-icon">↗</div>
-            <h3>Public sync</h3>
-            <p>Export your local runs to <code>~/.bench-loop/exports/</code> and submit them to the public leaderboard.</p>
+            <h3>Auto-publish</h3>
+            <p>Every completed benchmark auto-publishes to the public leaderboard at <code>bench-loop.com</code>. Opt out with <code>BENCHLOOP_NO_SUBMIT=1</code>.</p>
           </div>
         </div>
       </section>
