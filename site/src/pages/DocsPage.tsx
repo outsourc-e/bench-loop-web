@@ -112,7 +112,7 @@ benchloop --version`}</pre>
             <h2>Publish a run</h2>
             <p>Export your local runs to the public leaderboard format:</p>
             <pre>{`benchloop export --output ~/.bench-loop/exports/my-runs.json
-# then open a PR against ocplatform/bench-loop with your JSON`}</pre>
+# then open a PR against outsourc-e/bench-loop with your JSON`}</pre>
             <p>
               The published JSON is what powers the <a href="/leaderboard">/leaderboard</a> page on this site.
             </p>

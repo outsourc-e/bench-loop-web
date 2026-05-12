@@ -28,7 +28,7 @@ const cloneInstalls = [
   {
     title: 'Clone + run',
     body: 'Run the full BenchLoop stack — CLI plus local web app — from source.',
-    code: 'git clone https://github.com/ocplatform/bench-loop\ncd bench-loop\nmake dev',
+    code: 'git clone https://github.com/outsourc-e/bench-loop\ncd bench-loop\nmake dev',
   },
   {
     title: 'Docker',
