@@ -72,11 +72,12 @@ benchloop --version`}</pre>
             <h2>Suites</h2>
             <ul>
               <li><strong>speed</strong> — short / medium / long-context throughput, TTFT, generation tok/s.</li>
-              <li><strong>toolcall</strong> — structured tool-call correctness across realistic tasks (weather, stocks, email).</li>
+              <li><strong>toolcall</strong> — single-shot tool-call correctness across realistic tasks (weather, stocks, email).</li>
               <li><strong>coding</strong> — executable Python tasks with sandboxed verification and 10s timeout.</li>
               <li><strong>dataextract</strong> — JSON / structured extraction from messy natural language.</li>
               <li><strong>instructfollow</strong> — formatting, exactness, and constraint compliance.</li>
               <li><strong>reasonmath</strong> — small reasoning + math tasks with deterministic checks.</li>
+              <li><strong>agent</strong> — multi-turn agent loop with real tool execution. BenchLoop runs the loop: the model emits a tool call, BenchLoop actually executes it (calculator, weather, stocks, strings), feeds the result back as a <code>tool</code> message, and the model iterates until done. Scored on correctness, efficiency, no-hallucination, and required-tool coverage.</li>
             </ul>
           </section>
 
@@ -101,8 +102,9 @@ benchloop --version`}</pre>
             </p>
             <ul>
               <li><strong>Quality</strong> = mean of all non-speed suite scores (size-fair).</li>
-              <li><strong>Speed</strong> = <code>12.54 · log2(tok/s) + 0.9</code>, clamped to 0–100.</li>
+              <li><strong>Speed</strong> = <code>12.54 · log2(tok/s) + 0.9</code>, clamped to 0–100. Anchored on real M-series and RTX reference points.</li>
               <li><strong>Reliability</strong> = pass rate across all tasks.</li>
+              <li><strong>Agent</strong> = 25 points each for <code>correct_final</code>, <code>efficient</code> (under max turns), <code>no_hallucinated_tools</code>, and <code>all_required_called</code>. Averaged across tasks.</li>
             </ul>
           </section>
 

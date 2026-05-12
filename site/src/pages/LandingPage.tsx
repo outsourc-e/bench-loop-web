@@ -49,11 +49,12 @@ const howSteps: { num: string; title: string; body: string; code?: string }[] = 
 
 const suiteRows: [string, string][] = [
   ['speed', 'Latency, throughput, TTFT, generation tok/s'],
-  ['toolcall', 'Structured tool-call correctness across realistic tasks'],
-  ['coding', 'Executable Python tasks with sandboxed verification'],
+  ['toolcall', 'Single-shot tool-call correctness across realistic tasks'],
+  ['coding', 'Executable Python tasks verified in a sandboxed subprocess'],
   ['dataextract', 'JSON / data extraction from messy text'],
   ['instructfollow', 'Constraint following, formatting, and exactness'],
   ['reasonmath', 'Small reasoning + math tasks with deterministic checks'],
+  ['agent', 'Multi-turn agent loop — BenchLoop executes tools and feeds results back'],
 ]
 
 export default function LandingPage() {
@@ -75,7 +76,7 @@ export default function LandingPage() {
             <span className="grad-text">by what actually matters.</span>
           </h1>
           <p className="landing-lede">
-            BenchLoop scores quality, speed, reliability, and harness behavior across repeatable local workloads.
+            BenchLoop scores quality, speed, reliability, and real agent-loop behavior across repeatable local workloads.
             Stop comparing screenshots and vibes. Run the loop, get the receipts.
           </p>
           <div className="landing-actions">
@@ -172,10 +173,10 @@ export default function LandingPage() {
       <section className="split-section">
         <div className="card-premium suite-panel">
           <div className="page-kicker">Suites</div>
-          <h2>Six ways to catch model lies.</h2>
+          <h2>Seven ways to catch model lies.</h2>
           <p className="page-subtitle">
-            Speed alone is how you accidentally crown a toaster. BenchLoop blends quality, reliability, and throughput
-            into one comparable run.
+            Speed alone is how you accidentally crown a toaster. BenchLoop blends quality, reliability, throughput,
+            and a real multi-turn agent loop into one comparable run.
           </p>
           <div className="suite-list">
             {suiteRows.map(([name, desc]) => (
