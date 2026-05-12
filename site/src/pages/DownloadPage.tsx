@@ -13,14 +13,9 @@ const cliInstalls = [
     code: 'pip install benchloop',
   },
   {
-    title: 'Homebrew',
-    body: 'macOS / Linux. Bundles the BenchLoop CLI and a local web UI launcher.',
-    code: 'brew install ocplatform/tap/benchloop',
-  },
-  {
-    title: 'Cargo',
-    body: 'Native Rust CLI build — fastest startup, no Python required.',
-    code: 'cargo install benchloop',
+    title: 'From source',
+    body: 'Clone the repo and install in editable mode — best if you want to hack on suites.',
+    code: 'git clone https://github.com/outsourc-e/bench-loop\ncd bench-loop\npip install -e .',
   },
 ]
 
@@ -31,9 +26,9 @@ const cloneInstalls = [
     code: 'git clone https://github.com/outsourc-e/bench-loop\ncd bench-loop\nmake dev',
   },
   {
-    title: 'Docker',
+    title: 'Docker (coming soon)',
     body: 'Single-container BenchLoop with the local API and web UI bundled.',
-    code: 'docker run --rm -it -p 5180:5180 -p 8877:8877 \\\n  -v $HOME/.bench-loop:/root/.bench-loop \\\n  ghcr.io/ocplatform/benchloop:latest',
+    code: 'docker run --rm -it -p 5180:5180 -p 8877:8877 \\\n  -v $HOME/.bench-loop:/root/.bench-loop \\\n  local docker build',
   },
 ]
 
