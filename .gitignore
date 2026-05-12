@@ -1,4 +1,21 @@
-
 # Python
 __pycache__/
 *.pyc
+
+# Node
+node_modules/
+
+# Build artifacts
+dist/
+*.tsbuildinfo
+
+# Vite cache
+.vite/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store

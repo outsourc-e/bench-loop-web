@@ -7,7 +7,6 @@ import LeaderboardTab from './tabs/LeaderboardTab'
 import StackLeaderboardTab from './tabs/StackLeaderboardTab'
 import RunDetailPage from './pages/RunDetailPage'
 import ComparePage from './pages/ComparePage'
-import LandingPage from './pages/LandingPage'
 import './App.css'
 
 export default function App() {
@@ -22,8 +21,7 @@ export default function App() {
   }
 
   const navItems = [
-    { to: '/', label: 'Launch' },
-    { to: '/models', label: 'Models' },
+    { to: '/', label: 'Models' },
     { to: '/benchmark', label: 'Benchmark' },
     { to: '/leaderboard', label: 'Leaderboard' },
     { to: '/compare', label: 'Compare' },
@@ -59,8 +57,7 @@ export default function App() {
       </header>
       <main className="main">
         <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/landing" element={<LandingPage />} />
+          <Route path="/" element={<ModelsTab onBenchmark={handleBenchmarkModel} />} />
           <Route path="/models" element={<ModelsTab onBenchmark={handleBenchmarkModel} />} />
           <Route path="/chat" element={<ChatTab />} />
           <Route

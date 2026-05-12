@@ -1,0 +1,28 @@
+{
+  "_comment": "Seed snapshot. Replace with a real export from `~/.bench-loop/runs/` via scripts/export-leaderboard.ts before publishing.",
+  "generated_at": "2026-05-12T17:20:00Z",
+  "runs": [
+    {
+      "id": "a833c14b",
+      "model": "qwen3:8b",
+      "harness": "raw",
+      "provider": "ollama",
+      "machine": "RTX 4090 (PC1)",
+      "overall_score": 72.9,
+      "quality_score": 73.6,
+      "speed_score": 78.9,
+      "reliability_score": 66.7,
+      "generation_tok_per_sec": 74.6,
+      "ttft_ms": 108,
+      "is_full_benchmark": true,
+      "suites": {
+        "speed": { "score": 78.9 },
+        "toolcall": { "score": 91.7 },
+        "coding": { "score": 100.0 },
+        "dataextract": { "score": 69.8 },
+        "instructfollow": { "score": 46.7 },
+        "reasonmath": { "score": 60.0 }
+      }
+    }
+  ]
+}
