@@ -842,3 +842,77 @@ select {
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+ * Quality UI pass — local app
+ * Tighten typography, add subtle hover affordances, scope glow
+ * to header only, respect prefers-reduced-motion.
+ * ============================================================ */
+
+.app::before {
+  /* Lighter grid texture — was a hair too busy */
+  background-size: 56px 56px;
+  opacity: 0.7;
+}
+
+.header {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 16px 40px -28px rgba(0,0,0,0.7);
+}
+
+.header::after {
+  /* One soft accent line of green under the header to anchor the brand */
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(45, 212, 127, 0.5), transparent);
+  pointer-events: none;
+}
+
+.nav-tab {
+  transition: color var(--duration) var(--ease), background var(--duration) var(--ease);
+}
+
+.nav-tab.active {
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 127, 0.28);
+}
+
+.card {
+  transition: border-color var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease),
+              transform var(--duration) var(--ease);
+}
+
+.card:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  /* Slightly brighter primary so CTAs read on every background */
+  background: linear-gradient(180deg, #4cea99, #1cb46a);
+}
+
+.btn-primary:hover {
+  filter: brightness(1.04);
+}
+
+.input:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: 0 0 0 3px rgba(45, 212, 127, 0.16);
+}
+
+.section-title {
+  letter-spacing: 0.1em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .nav-tab,
+  .btn,
+  .progress-bar-fill {
+    transition: none !important;
+    animation: none !important;
+  }
+}

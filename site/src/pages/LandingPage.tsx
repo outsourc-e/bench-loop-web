@@ -66,7 +66,6 @@ export default function LandingPage() {
     <div className="landing-page">
       <section className="landing-hero card-premium">
         <div className="aurora-orb" aria-hidden="true" />
-        <div className="aurora-orb aurora-orb-2" aria-hidden="true" />
         <div className="landing-hero-copy">
           <div className="page-kicker">
             <LoopLogo size={14} /> Local LLM benchmark lab
@@ -225,7 +224,6 @@ export default function LandingPage() {
       </section>
 
       <section className="launch-strip card-premium">
-        <div className="aurora-orb aurora-orb-strip" aria-hidden="true" />
         <div>
           <div className="page-kicker">Ship path</div>
           <h2>Ready to publish your own runs?</h2>
