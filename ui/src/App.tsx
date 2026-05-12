@@ -7,6 +7,7 @@ import LeaderboardTab from './tabs/LeaderboardTab'
 import StackLeaderboardTab from './tabs/StackLeaderboardTab'
 import RunDetailPage from './pages/RunDetailPage'
 import ComparePage from './pages/ComparePage'
+import LandingPage from './pages/LandingPage'
 import './App.css'
 
 export default function App() {
@@ -21,11 +22,12 @@ export default function App() {
   }
 
   const navItems = [
-    { to: '/', label: 'Models' },
-    { to: '/chat', label: 'Chat' },
+    { to: '/', label: 'Launch' },
+    { to: '/models', label: 'Models' },
     { to: '/benchmark', label: 'Benchmark' },
     { to: '/leaderboard', label: 'Leaderboard' },
     { to: '/compare', label: 'Compare' },
+    { to: '/chat', label: 'Chat' },
     { to: '/stacks', label: 'Stacks' },
   ]
 
@@ -34,6 +36,7 @@ export default function App() {
       <header className="header">
         <div className="header-inner">
           <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+            <span className="logo-mark" aria-hidden="true" />
             <span className="logo-text">BenchLoop</span>
             <span className="logo-badge">local</span>
           </div>
@@ -49,11 +52,15 @@ export default function App() {
               </NavLink>
             ))}
           </nav>
+          <div className="header-actions">
+            <span className="status-pill"><span className="status-dot" /> Local API</span>
+          </div>
         </div>
       </header>
       <main className="main">
         <Routes>
-          <Route path="/" element={<ModelsTab onBenchmark={handleBenchmarkModel} />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/landing" element={<LandingPage />} />
           <Route path="/models" element={<ModelsTab onBenchmark={handleBenchmarkModel} />} />
           <Route path="/chat" element={<ChatTab />} />
           <Route
