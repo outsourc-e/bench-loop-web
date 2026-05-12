@@ -7,6 +7,7 @@ import LeaderboardTab from './tabs/LeaderboardTab'
 import StackLeaderboardTab from './tabs/StackLeaderboardTab'
 import RunDetailPage from './pages/RunDetailPage'
 import ComparePage from './pages/ComparePage'
+import ErrorBoundary from './components/ErrorBoundary'
 import './App.css'
 
 export default function App() {
@@ -56,6 +57,7 @@ export default function App() {
         </div>
       </header>
       <main className="main">
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<ModelsTab onBenchmark={handleBenchmarkModel} />} />
           <Route path="/models" element={<ModelsTab onBenchmark={handleBenchmarkModel} />} />
@@ -75,6 +77,7 @@ export default function App() {
           <Route path="/runs/:runId" element={<RunDetailPage />} />
           <Route path="/compare" element={<ComparePage />} />
         </Routes>
+        </ErrorBoundary>
       </main>
     </div>
   )

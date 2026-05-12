@@ -551,7 +551,9 @@ function LiveProgressPanel({ progress, runId, running }: { progress: ReturnType<
 }
 
 function SuiteProgressCard({ suiteId, progress }: { suiteId: SuiteId, progress: SuiteProgress }) {
-  const meta = SUITE_META[suiteId]
+  // Guard against suites missing from SUITE_META (forward-compat for new suites
+  // shipped by the API but not yet declared in ALL_SUITES on the UI side).
+  const meta = SUITE_META[suiteId] || { id: suiteId, label: String(suiteId), short: String(suiteId).slice(0, 4).toUpperCase(), color: 'var(--accent)' }
   const percent = progress.totalTasks ? Math.round((progress.completedTasks / progress.totalTasks) * 100) : progress.status === 'completed' ? 100 : 0
 
   return (
