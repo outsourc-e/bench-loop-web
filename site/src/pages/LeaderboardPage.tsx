@@ -11,6 +11,9 @@ const RANK_MODES: { id: RankMode; label: string }[] = [
   { id: 'tok_per_sec', label: 'Raw tok/s' },
 ]
 
+const HARNESSES = ['all', 'raw', 'hermes', 'qwen', 'pi'] as const
+type HarnessFilter = typeof HARNESSES[number]
+
 function scoreClass(score: number): string {
   return score >= 80 ? 'green' : score >= 60 ? 'yellow' : 'red'
 }
@@ -25,32 +28,76 @@ function scoreOf(run: PublicRun, mode: RankMode): number {
   }
 }
 
+function machineLabel(run: PublicRun): string {
+  // Prefer GPU > CPU > "remote" — best signal of what hardware actually ran the model.
+  if (run.gpu) return run.gpu
+  if (run.cpu) return run.cpu
+  if (run.machine) return run.machine
+  return 'unknown'
+}
+
+function timeAgo(iso?: string): string {
+  if (!iso) return ''
+  const ms = Date.now() - new Date(iso).getTime()
+  if (isNaN(ms) || ms < 0) return ''
+  const s = Math.floor(ms / 1000)
+  if (s < 60) return `${s}s ago`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
+}
+
 export default function LeaderboardPage() {
   const { runs, loading, error } = useLeaderboard()
   const [mode, setMode] = useState<RankMode>('overall')
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'full' | 'all'>('full')
+  const [harnessFilter, setHarnessFilter] = useState<HarnessFilter>('all')
 
   const ranked = useMemo(() => {
     const filtered = runs.filter((r) => {
       if (search && !r.model.toLowerCase().includes(search.toLowerCase())) return false
       if (mode === 'agent') return (r.agent_score ?? -1) >= 0
       if (scope === 'full' && !r.is_full_benchmark) return false
+      if (harnessFilter !== 'all' && (r.harness || 'raw') !== harnessFilter) return false
       return true
     })
     return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))
-  }, [runs, mode, search, scope])
+  }, [runs, mode, search, scope, harnessFilter])
+
+  const stats = useMemo(() => {
+    const totalRuns = runs.length
+    const fullRuns = runs.filter((r) => r.is_full_benchmark).length
+    const uniqueModels = new Set(runs.map((r) => r.model)).size
+    const uniqueMachines = new Set(runs.map(machineLabel).filter((m) => m && m !== 'unknown')).size
+    const bestOverall = runs.length ? Math.max(...runs.map((r) => r.overall_score)) : 0
+    return { totalRuns, fullRuns, uniqueModels, uniqueMachines, bestOverall }
+  }, [runs])
 
   return (
     <div>
       <div className="page-kicker">Public leaderboard</div>
       <h1>Local LLMs, scored on real work.</h1>
       <p className="page-subtitle">
-        Submitted runs from real hardware. Each row is reproducible — install BenchLoop, run the same suites,
-        compare your numbers.
+        Submitted runs from real hardware. Every entry is reproducible — install BenchLoop, run the same suites,
+        compare your numbers. Dedup is best run per (model, harness) so models can't game the board with cherry-picked runs.
       </p>
 
-      <div className="card" style={{ padding: 14, marginTop: 24, marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+      {/* Live stats strip */}
+      {!loading && !error && runs.length > 0 && (
+        <div className="metric-grid metric-grid-tight" style={{ marginTop: 18, marginBottom: 18 }}>
+          <Stat label="Published runs" value={String(stats.totalRuns)} />
+          <Stat label="Full benchmarks" value={String(stats.fullRuns)} />
+          <Stat label="Unique models" value={String(stats.uniqueModels)} />
+          <Stat label="Unique machines" value={String(stats.uniqueMachines)} />
+        </div>
+      )}
+
+      {/* Filter bar */}
+      <div className="card" style={{ padding: 14, marginTop: 8, marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {RANK_MODES.map((m) => (
             <button
@@ -68,8 +115,13 @@ export default function LeaderboardPage() {
           placeholder="Search model"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ minWidth: 220, maxWidth: 320, marginLeft: 'auto' }}
+          style={{ minWidth: 200, maxWidth: 280, marginLeft: 'auto' }}
         />
+        <select value={harnessFilter} onChange={(e) => setHarnessFilter(e.target.value as HarnessFilter)} style={{ maxWidth: 160 }}>
+          {HARNESSES.map((h) => (
+            <option key={h} value={h}>{h === 'all' ? 'All harnesses' : `${h} harness`}</option>
+          ))}
+        </select>
         <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')} style={{ maxWidth: 220 }}>
           <option value="full">Full benchmarks only</option>
           <option value="all">All scopes</option>
@@ -77,10 +129,10 @@ export default function LeaderboardPage() {
       </div>
 
       {loading && <div className="card">Loading public runs…</div>}
-      {error && <div className="card">Couldn’t load runs: {error}</div>}
+      {error && <div className="card">Couldn't load runs: {error}</div>}
       {!loading && !error && ranked.length === 0 && (
         <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>
-          <strong style={{ color: 'var(--text)' }}>No published runs yet.</strong>
+          <strong style={{ color: 'var(--text)' }}>No runs match this filter.</strong>
           <p style={{ marginTop: 6 }}>
             Install BenchLoop and run any benchmark — every completed run auto-publishes here.
           </p>
@@ -95,36 +147,70 @@ export default function LeaderboardPage() {
                 <th>#</th>
                 <th>Model</th>
                 <th>Harness</th>
-                <th>Machine</th>
+                <th>Hardware</th>
                 <th style={{ textAlign: 'right' }}>Overall</th>
-                <th style={{ textAlign: 'right' }}>Agent</th>
                 <th style={{ textAlign: 'right' }}>Quality</th>
                 <th style={{ textAlign: 'right' }}>Speed</th>
+                <th style={{ textAlign: 'right' }}>Reliab.</th>
+                <th style={{ textAlign: 'right' }}>Agent</th>
                 <th style={{ textAlign: 'right' }}>Tok/s</th>
+                <th style={{ textAlign: 'right' }}>TTFT</th>
+                <th style={{ textAlign: 'right' }}>Submitted</th>
               </tr>
             </thead>
             <tbody>
               {ranked.map((r, i) => (
                 <tr key={r.id}>
                   <td className="lb-score">{i + 1}</td>
-                  <td><strong>{r.model}</strong></td>
-                  <td>{r.harness || 'raw'}</td>
-                  <td>{r.machine || r.provider || '—'}</td>
+                  <td>
+                    <strong>{r.model}</strong>
+                    {r.is_full_benchmark && (
+                      <span style={{ marginLeft: 8, fontSize: '0.65rem', padding: '2px 6px', borderRadius: 4, background: 'rgba(34,197,94,0.12)', color: '#22c55e', verticalAlign: 'middle' }}>FULL</span>
+                    )}
+                    {r.is_agent_only && (
+                      <span style={{ marginLeft: 8, fontSize: '0.65rem', padding: '2px 6px', borderRadius: 4, background: 'rgba(168,85,247,0.12)', color: '#a855f7', verticalAlign: 'middle' }}>AGENT</span>
+                    )}
+                  </td>
+                  <td><code>{r.harness || 'raw'}</code></td>
+                  <td title={`${r.cpu || ''}${r.gpu ? ' / ' + r.gpu : ''}${r.gpu_memory_gb ? ' / ' + r.gpu_memory_gb + 'GB VRAM' : ''}`}>
+                    {machineLabel(r)}
+                  </td>
                   <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.overall_score)}`}>{r.overall_score.toFixed(1)}</span></td>
+                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.quality_score)}`}>{r.quality_score.toFixed(1)}</span></td>
+                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.speed_score)}`}>{r.speed_score.toFixed(1)}</span></td>
+                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.reliability_score)}`}>{r.reliability_score.toFixed(1)}</span></td>
                   <td style={{ textAlign: 'right' }}>
                     {r.agent_score != null && r.agent_score >= 0
                       ? <span className={`lb-score ${scoreClass(r.agent_score)}`}>{r.agent_score.toFixed(1)}</span>
                       : <span className="lb-score" style={{ color: 'var(--text-muted)' }}>—</span>}
                   </td>
-                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.quality_score)}`}>{r.quality_score.toFixed(1)}</span></td>
-                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.speed_score)}`}>{r.speed_score.toFixed(1)}</span></td>
-                  <td style={{ textAlign: 'right' }} className="lb-score">{r.generation_tok_per_sec.toFixed(1)}</td>
+                  <td style={{ textAlign: 'right' }} className="lb-score">{r.generation_tok_per_sec ? r.generation_tok_per_sec.toFixed(1) : '—'}</td>
+                  <td style={{ textAlign: 'right' }} className="lb-score" title={r.ttft_ms ? `${r.ttft_ms.toFixed(0)} ms time to first token` : ''}>
+                    {r.ttft_ms ? `${r.ttft_ms.toFixed(0)}ms` : '—'}
+                  </td>
+                  <td style={{ textAlign: 'right', color: 'var(--text-dim)', fontSize: '0.75rem' }} title={r.timestamp}>
+                    {timeAgo(r.timestamp)}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <p style={{ marginTop: 24, color: 'var(--text-dim)', fontSize: '0.8rem' }}>
+        Hardware shown is what the local CLI detected at run time. Tunneled or remote endpoints may report
+        the orchestrator's hardware rather than the model server's. We're working on cleaner remote attribution.
+      </p>
+    </div>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="metric-card stat-card">
+      <div className="metric-label">{label}</div>
+      <div className="metric-value">{value}</div>
     </div>
   )
 }

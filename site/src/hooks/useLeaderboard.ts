@@ -2,23 +2,30 @@ import { useEffect, useState } from 'react'
 
 export interface PublicRun {
   id: string
+  run_id?: string
+  timestamp?: string
   model: string
   harness: string
   provider: string
   machine: string
+  cpu?: string
+  gpu?: string
+  gpu_memory_gb?: number
+  os?: string
   overall_score: number
   quality_score: number
   speed_score: number
   reliability_score: number
   generation_tok_per_sec: number
   ttft_ms: number
+  total_runtime_sec?: number | null
   is_full_benchmark: boolean
   is_quality_full?: boolean
   is_agent_only?: boolean
   agent_score?: number | null
   agent_pass?: number | null
   agent_task_count?: number | null
-  suites: Record<string, { score: number }>
+  suites: Record<string, { score: number; pass_count?: number; task_count?: number }>
 }
 
 /**

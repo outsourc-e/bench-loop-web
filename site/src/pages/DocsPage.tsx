@@ -145,15 +145,37 @@ ollama pull qwen3:1.7b`}</pre>
           <section id="harnesses">
             <h2>Harnesses</h2>
             <p>
-              Same model, different prompt/parse contract. Lets you A/B "this model with raw tools" vs
-              "this model with Hermes tags".
+              A <strong>harness</strong> wraps a task two ways: <em>prepare</em> rewrites the system prompt + tool
+              schema before sending to the model, and <em>postprocess</em> parses the model's output to extract tool
+              calls. Same model + same task + different harness = different scores, which lets you A/B
+              "this model with raw tools" vs "this model with Hermes tags".
             </p>
+            <p>
+              All harnesses ship inside <code>benchloop-cli</code> — no extra installs. Run
+              <code style={{ display: 'inline-block', marginLeft: 4 }}>benchloop info</code>
+              to see them registered.
+            </p>
+            <h3>How to A/B test</h3>
+            <pre>{`# Same model, four harnesses:
+benchloop run --model qwen3:8b --harness raw
+benchloop run --model qwen3:8b --harness hermes
+benchloop run --model qwen3:8b --harness qwen
+benchloop run --model qwen3:8b --harness pi
+
+# Then compare on /leaderboard — results dedupe per (model, harness)`}</pre>
+            <h3>What each harness actually does</h3>
             <ul>
-              <li><code>raw</code> — vanilla OpenAI-style tools.</li>
-              <li><code>hermes</code> — <code>{`<tool_call>{...}</tool_call>`}</code> XML tags.</li>
-              <li><code>qwen</code> — <code>{`<function_call>{...}</function_call>`}</code> tags.</li>
-              <li><code>pi</code> — <code>{`<think>...</think>`}</code> reasoning + Hermes tool tags.</li>
+              <li><code>raw</code> — vanilla OpenAI-style <code>tools=[…]</code> param. Whatever your provider does natively.</li>
+              <li><code>hermes</code> — NousResearch Hermes format: tools embedded in system prompt as <code>{`<tools>`}</code> JSON-schema, model emits <code>{`<tool_call>{...}</tool_call>`}</code> XML tags.</li>
+              <li><code>qwen</code> — Qwen3-Coder / Qwen-Agent style: <code>{`<function_call>{...}</function_call>`}</code> XML tags.</li>
+              <li><code>pi</code> — <code>{`<think>...</think>`}</code> reasoning + Hermes tool tags. Strips reasoning before scoring so verbose chain-of-thought doesn't tank quality scores.</li>
             </ul>
+            <h3>Why this matters</h3>
+            <p>
+              Many "this model can't tool-call" claims are actually "this model can't tool-call with the harness you tried."
+              We've seen +15 overall just from picking the right harness for the model family. Filter the leaderboard
+              by harness to see this effect.
+            </p>
           </section>
 
           <section id="scoring">

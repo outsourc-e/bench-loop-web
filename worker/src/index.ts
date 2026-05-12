@@ -45,6 +45,9 @@ interface RunPayload {
     gpu_memory_gb?: number
     system_memory_gb?: number
     os?: string
+    is_remote?: boolean
+    remote_host?: string
+    endpoint?: string
   }
   provider?: string
   harness?: string
@@ -104,11 +107,12 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       model, family, parameter_count, quantization,
       harness, provider,
       cpu, gpu, gpu_memory_gb, system_memory_gb, os,
+      is_remote, remote_host, endpoint,
       overall_score, quality_score, speed_score, reliability_score, value_score,
       generation_tok_per_sec, ttft_ms, total_runtime_sec,
       is_full_benchmark, is_quality_full, is_agent_only,
       suites_json, submitter_ip, user_agent
-    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?)`,
+    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?)`,
   )
     .bind(
       id,
@@ -127,6 +131,9 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       p.machine!.gpu_memory_gb ?? 0,
       p.machine!.system_memory_gb ?? 0,
       p.machine!.os || "",
+      p.machine!.is_remote ? 1 : 0,
+      p.machine!.remote_host || "",
+      p.machine!.endpoint || "",
       p.overall_score!,
       p.quality_score ?? null,
       p.speed_score ?? null,
@@ -163,18 +170,29 @@ async function handleLeaderboard(env: Env): Promise<Response> {
     id: r.id,
     run_id: r.run_id,
     timestamp: r.run_timestamp,
+    submitted_at: r.submitted_at,
     model: r.model,
+    family: r.family,
+    parameter_count: r.parameter_count,
+    quantization: r.quantization,
     harness: r.harness,
     provider: r.provider,
-    machine: r.gpu || r.cpu || r.machine_id,
+    machine: r.gpu || r.cpu || r.remote_host || r.machine_id,
     cpu: r.cpu,
     gpu: r.gpu,
+    gpu_memory_gb: r.gpu_memory_gb,
+    system_memory_gb: r.system_memory_gb,
+    os: r.os,
+    is_remote: !!r.is_remote,
+    remote_host: r.remote_host,
+    endpoint: r.endpoint,
     overall_score: r.overall_score,
     quality_score: r.quality_score,
     speed_score: r.speed_score,
     reliability_score: r.reliability_score,
     generation_tok_per_sec: r.generation_tok_per_sec,
     ttft_ms: r.ttft_ms,
+    total_runtime_sec: r.total_runtime_sec,
     is_full_benchmark: !!r.is_full_benchmark,
     is_quality_full: !!r.is_quality_full,
     is_agent_only: !!r.is_agent_only,

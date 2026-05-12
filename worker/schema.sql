@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS runs (
   gpu_memory_gb REAL,
   system_memory_gb REAL,
   os TEXT,
+  is_remote INTEGER DEFAULT 0,
+  remote_host TEXT,
+  endpoint TEXT,
 
   overall_score REAL NOT NULL,
   quality_score REAL,
