@@ -817,6 +817,12 @@
   border: 1px solid rgba(168, 85, 247, 0.25);
 }
 
+.lb-badge.partial {
+  background: rgba(246, 193, 67, 0.10);
+  color: var(--yellow);
+  border: 1px solid rgba(246, 193, 67, 0.24);
+}
+
 /* Download */
 .download-grid {
   display: grid;

@@ -54,7 +54,7 @@ export default function LeaderboardPage() {
   const { runs, loading, error } = useLeaderboard()
   const [mode, setMode] = useState<RankMode>('overall')
   const [search, setSearch] = useState('')
-  const [scope, setScope] = useState<'full' | 'all'>('full')
+  const [scope, setScope] = useState<'full' | 'all'>('all')
   const [harnessFilter, setHarnessFilter] = useState<HarnessFilter>('all')
 
   const ranked = useMemo(() => {
@@ -166,7 +166,7 @@ export default function LeaderboardPage() {
                   <td className="lb-score">{i + 1}</td>
                   <td>
                     <strong>{r.model}</strong>
-                    {r.is_full_benchmark && <span className="lb-badge full">FULL</span>}
+                    {r.is_full_benchmark ? <span className="lb-badge full">FULL</span> : <span className="lb-badge partial">PARTIAL</span>}
                     {r.is_agent_only && <span className="lb-badge agent">AGENT</span>}
                   </td>
                   <td><code>{r.harness || 'raw'}</code></td>
