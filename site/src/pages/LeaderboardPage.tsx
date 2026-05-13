@@ -40,16 +40,18 @@ function endpointPort(endpoint?: string): string {
 function machineLabel(run: PublicRun): string {
   // Prefer actual GPU/CPU if known. For localhost tunnels, avoid showing plain
   // "localhost" because that is the tunnel endpoint, not meaningful hardware.
+  if (run.hardware_label) return run.hardware_label
   if (run.gpu) return run.gpu
+  if (run.cpu && run.system_memory_gb) return `${run.cpu} (${run.system_memory_gb.toFixed(0)}GB RAM)`
   if (run.cpu) return run.cpu
 
   if (run.is_remote) {
     const port = endpointPort(run.endpoint)
-    const vram = run.gpu_memory_gb ? `${run.gpu_memory_gb.toFixed(1)}GB VRAM in use` : 'remote Ollama'
-    // Known local launch/testing tunnel used for PC1. Generic users still see a useful remote label.
-    if (port === '11435') return `PC1 remote GPU (${vram})`
-    if (port === '11436') return `Studio remote GPU (${vram})`
-    return `Remote endpoint${port ? ` :${port}` : ''}${run.gpu_memory_gb ? ` (${vram})` : ''}`
+    // If hardware wasn't explicitly stamped, say so honestly and put tunnel details
+    // in the expanded row instead of pretending localhost is hardware.
+    if (port === '11435') return 'PC1 remote hardware'
+    if (port === '11436') return 'Studio remote hardware'
+    return `Remote hardware${port ? ` (:${port})` : ''}`
   }
 
   if (run.machine && run.machine !== 'localhost') return run.machine
@@ -237,7 +239,8 @@ export default function LeaderboardPage() {
                             <Detail label="Scope" value={r.is_full_benchmark ? 'Full benchmark' : 'Partial / smoke run'} />
                             <Detail label="Endpoint" value={r.endpoint || (r.is_remote ? 'remote endpoint' : 'local default')} mono />
                             <Detail label="Remote" value={r.is_remote ? `yes${r.remote_host ? ` (${r.remote_host})` : ''}` : 'no'} />
-                            <Detail label="GPU/VRAM" value={r.gpu ? `${r.gpu}${r.gpu_memory_gb ? ` / ${r.gpu_memory_gb.toFixed(1)}GB` : ''}` : r.gpu_memory_gb ? `${r.gpu_memory_gb.toFixed(1)}GB VRAM in use` : 'not reported'} />
+                            <Detail label="Hardware label" value={r.hardware_label || 'not stamped'} />
+                            <Detail label="GPU/VRAM" value={r.gpu ? `${r.gpu}${r.gpu_memory_gb ? ` / ${r.gpu_memory_gb.toFixed(1)}GB` : ''}` : r.gpu_memory_gb ? `${r.gpu_memory_gb.toFixed(1)}GB VRAM observed in use` : 'not reported'} />
                             <Detail label="Runtime" value={r.total_runtime_sec ? `${r.total_runtime_sec.toFixed(1)}s` : '—'} />
                             <Detail label="Suites" value={suiteSummary(r)} />
                             <Detail label="Submitted" value={r.submitted_at || r.timestamp || '—'} mono />

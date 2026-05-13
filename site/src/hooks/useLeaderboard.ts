@@ -10,9 +10,11 @@ export interface PublicRun {
   harness: string
   provider: string
   machine: string
+  hardware_label?: string
   cpu?: string
   gpu?: string
   gpu_memory_gb?: number
+  system_memory_gb?: number
   os?: string
   overall_score: number
   quality_score: number

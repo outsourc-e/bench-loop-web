@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS runs (
   is_remote INTEGER DEFAULT 0,
   remote_host TEXT,
   endpoint TEXT,
+  hardware_label TEXT,
 
   overall_score REAL NOT NULL,
   quality_score REAL,
