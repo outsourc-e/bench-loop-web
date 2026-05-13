@@ -77,21 +77,23 @@ benchloop --version  # 0.1.1`}</pre>
           <section id="dashboard">
             <h2>Local web dashboard</h2>
             <p>
-              The CLI is enough to benchmark, score, and auto-publish. If you want the
-              visual dashboard (Models / Benchmark / Leaderboard / Compare / Chat tabs)
-              running on <code>127.0.0.1:5180</code>, clone the web app repo and start it.
+              v0.2.0+ ships the full FastAPI + React dashboard inside the wheel. After installing the CLI:
             </p>
-            <pre>{`# Clone both repos side-by-side
-git clone https://github.com/outsourc-e/bench-loop
-git clone https://github.com/outsourc-e/bench-loop-web
-
-# Start the dashboard (API + UI)
-cd bench-loop-web
-./start.sh`}</pre>
+            <pre>{`benchloop dashboard
+# → http://127.0.0.1:8877`}</pre>
+            <p>
+              That's it. Models, Benchmark, Leaderboard, Compare, and Chat tabs are served on a single port,
+              and your browser opens automatically.
+            </p>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
               The dashboard auto-discovers models on <code>localhost:11434</code> (Ollama),
               <code>localhost:1234</code> (LM Studio), <code>localhost:8000</code> (MLX/Osaurus / vLLM), and any other endpoints you add.
             </p>
+            <h3>Development mode (hot-reload)</h3>
+            <p>
+              For hacking on the UI or API, clone <a href="https://github.com/outsourc-e/bench-loop-web" target="_blank" rel="noreferrer">bench-loop-web</a> alongside <code>bench-loop</code> and use:
+            </p>
+            <pre>{`benchloop dashboard --dev`}</pre>
           </section>
 
           <section id="backends">

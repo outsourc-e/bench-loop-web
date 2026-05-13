@@ -21,19 +21,19 @@ const cliInstalls = [
 
 const cloneInstalls = [
   {
-    title: '1. Clone both repos',
-    body: 'CLI plus the web dashboard. Clone them side by side.',
-    code: 'git clone https://github.com/outsourc-e/bench-loop\ngit clone https://github.com/outsourc-e/bench-loop-web',
+    title: '1. Install the CLI',
+    body: 'Dashboard is bundled into the wheel — no separate clone needed.',
+    code: 'pipx install benchloop-cli',
   },
   {
-    title: '2. Install the CLI (editable)',
-    body: 'Editable install — best if you want to hack on suites.',
-    code: 'cd bench-loop\npip install -e .',
+    title: '2. Launch the dashboard',
+    body: 'Single command. API + UI on one port. Browser opens automatically.',
+    code: 'benchloop dashboard',
   },
   {
-    title: '3. Start the dashboard',
-    body: 'Boots the FastAPI backend on :8877 and the Vite dev server on :5180.',
-    code: 'cd ../bench-loop-web\n./start.sh',
+    title: '3. (Optional) Dev mode',
+    body: 'For hot-reload while hacking on the UI, clone bench-loop-web alongside bench-loop and run with --dev.',
+    code: 'git clone https://github.com/outsourc-e/bench-loop\ngit clone https://github.com/outsourc-e/bench-loop-web\nbenchloop dashboard --dev',
   },
 ]
 
