@@ -3,7 +3,9 @@ import { useEffect, useState } from 'react'
 export interface PublicRun {
   id: string
   run_id?: string
+  machine_id?: string
   timestamp?: string
+  submitted_at?: string
   model: string
   harness: string
   provider: string
@@ -19,6 +21,9 @@ export interface PublicRun {
   generation_tok_per_sec: number
   ttft_ms: number
   total_runtime_sec?: number | null
+  is_remote?: boolean
+  remote_host?: string
+  endpoint?: string
   is_full_benchmark: boolean
   is_quality_full?: boolean
   is_agent_only?: boolean

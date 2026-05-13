@@ -28,12 +28,38 @@ function scoreOf(run: PublicRun, mode: RankMode): number {
   }
 }
 
+function endpointPort(endpoint?: string): string {
+  if (!endpoint) return ''
+  try {
+    return new URL(endpoint).port || ''
+  } catch {
+    return ''
+  }
+}
+
 function machineLabel(run: PublicRun): string {
-  // Prefer GPU > CPU > "remote" — best signal of what hardware actually ran the model.
+  // Prefer actual GPU/CPU if known. For localhost tunnels, avoid showing plain
+  // "localhost" because that is the tunnel endpoint, not meaningful hardware.
   if (run.gpu) return run.gpu
   if (run.cpu) return run.cpu
-  if (run.machine) return run.machine
-  return 'unknown'
+
+  if (run.is_remote) {
+    const port = endpointPort(run.endpoint)
+    const vram = run.gpu_memory_gb ? `${run.gpu_memory_gb.toFixed(1)}GB VRAM in use` : 'remote Ollama'
+    // Known local launch/testing tunnel used for PC1. Generic users still see a useful remote label.
+    if (port === '11435') return `PC1 remote GPU (${vram})`
+    if (port === '11436') return `Studio remote GPU (${vram})`
+    return `Remote endpoint${port ? ` :${port}` : ''}${run.gpu_memory_gb ? ` (${vram})` : ''}`
+  }
+
+  if (run.machine && run.machine !== 'localhost') return run.machine
+  return 'unknown hardware'
+}
+
+function suiteSummary(run: PublicRun): string {
+  const names = Object.keys(run.suites || {})
+  if (!names.length) return 'No suites recorded'
+  return names.join(', ')
 }
 
 function timeAgo(iso?: string): string {
@@ -56,6 +82,7 @@ export default function LeaderboardPage() {
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'full' | 'all'>('all')
   const [harnessFilter, setHarnessFilter] = useState<HarnessFilter>('all')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const ranked = useMemo(() => {
     const filtered = runs.filter((r) => {
@@ -161,36 +188,66 @@ export default function LeaderboardPage() {
               </tr>
             </thead>
             <tbody>
-              {ranked.map((r, i) => (
-                <tr key={r.id}>
-                  <td className="lb-score">{i + 1}</td>
-                  <td>
-                    <strong>{r.model}</strong>
-                    {r.is_full_benchmark ? <span className="lb-badge full">FULL</span> : <span className="lb-badge partial">PARTIAL</span>}
-                    {r.is_agent_only && <span className="lb-badge agent">AGENT</span>}
-                  </td>
-                  <td><code>{r.harness || 'raw'}</code></td>
-                  <td title={`${r.cpu || ''}${r.gpu ? ' / ' + r.gpu : ''}${r.gpu_memory_gb ? ' / ' + r.gpu_memory_gb + 'GB VRAM' : ''}`}>
-                    {machineLabel(r)}
-                  </td>
-                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.overall_score)}`}>{r.overall_score.toFixed(1)}</span></td>
-                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.quality_score)}`}>{r.quality_score.toFixed(1)}</span></td>
-                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.speed_score)}`}>{r.speed_score.toFixed(1)}</span></td>
-                  <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.reliability_score)}`}>{r.reliability_score.toFixed(1)}</span></td>
-                  <td style={{ textAlign: 'right' }}>
-                    {r.agent_score != null && r.agent_score >= 0
-                      ? <span className={`lb-score ${scoreClass(r.agent_score)}`}>{r.agent_score.toFixed(1)}</span>
-                      : <span className="lb-score" style={{ color: 'var(--text-muted)' }}>—</span>}
-                  </td>
-                  <td style={{ textAlign: 'right' }} className="lb-score">{r.generation_tok_per_sec ? r.generation_tok_per_sec.toFixed(1) : '—'}</td>
-                  <td style={{ textAlign: 'right' }} className="lb-score" title={r.ttft_ms ? `${r.ttft_ms.toFixed(0)} ms time to first token` : ''}>
-                    {r.ttft_ms ? `${r.ttft_ms.toFixed(0)}ms` : '—'}
-                  </td>
-                  <td style={{ textAlign: 'right', color: 'var(--text-dim)', fontSize: '0.75rem' }} title={r.timestamp}>
-                    {timeAgo(r.timestamp)}
-                  </td>
-                </tr>
-              ))}
+              {ranked.map((r, i) => {
+                const expanded = expandedId === r.id
+                return (
+                  <>
+                    <tr
+                      key={r.id}
+                      className="lb-row-clickable"
+                      onClick={() => setExpandedId(expanded ? null : r.id)}
+                      title="Click for run details"
+                    >
+                      <td className="lb-score">{i + 1}</td>
+                      <td>
+                        <strong>{r.model}</strong>
+                        {r.is_full_benchmark ? <span className="lb-badge full">FULL</span> : <span className="lb-badge partial">PARTIAL</span>}
+                        {r.is_agent_only && <span className="lb-badge agent">AGENT</span>}
+                      </td>
+                      <td><code>{r.harness || 'raw'}</code></td>
+                      <td title={`${r.cpu || ''}${r.gpu ? ' / ' + r.gpu : ''}${r.gpu_memory_gb ? ' / ' + r.gpu_memory_gb + 'GB VRAM' : ''}`}>
+                        {machineLabel(r)}
+                      </td>
+                      <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.overall_score)}`}>{r.overall_score.toFixed(1)}</span></td>
+                      <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.quality_score)}`}>{r.quality_score.toFixed(1)}</span></td>
+                      <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.speed_score)}`}>{r.speed_score.toFixed(1)}</span></td>
+                      <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.reliability_score)}`}>{r.reliability_score.toFixed(1)}</span></td>
+                      <td style={{ textAlign: 'right' }}>
+                        {r.agent_score != null && r.agent_score >= 0
+                          ? <span className={`lb-score ${scoreClass(r.agent_score)}`}>{r.agent_score.toFixed(1)}</span>
+                          : <span className="lb-score" style={{ color: 'var(--text-muted)' }}>—</span>}
+                      </td>
+                      <td style={{ textAlign: 'right' }} className="lb-score">{r.generation_tok_per_sec ? r.generation_tok_per_sec.toFixed(1) : '—'}</td>
+                      <td style={{ textAlign: 'right' }} className="lb-score" title={r.ttft_ms ? `${r.ttft_ms.toFixed(0)} ms time to first token` : ''}>
+                        {r.ttft_ms ? `${r.ttft_ms.toFixed(0)}ms` : '—'}
+                      </td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-dim)', fontSize: '0.75rem' }} title={r.timestamp}>
+                        {timeAgo(r.timestamp)} {expanded ? '▴' : '▾'}
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr key={`${r.id}-details`} className="lb-details-row">
+                        <td colSpan={12}>
+                          <div className="lb-details-grid">
+                            <Detail label="Run ID" value={r.run_id || r.id} mono />
+                            <Detail label="Posted by / Machine" value={machineLabel(r)} />
+                            <Detail label="Machine ID" value={r.machine_id || '—'} mono />
+                            <Detail label="Provider" value={r.provider || '—'} />
+                            <Detail label="Harness" value={r.harness || 'raw'} mono />
+                            <Detail label="Scope" value={r.is_full_benchmark ? 'Full benchmark' : 'Partial / smoke run'} />
+                            <Detail label="Endpoint" value={r.endpoint || (r.is_remote ? 'remote endpoint' : 'local default')} mono />
+                            <Detail label="Remote" value={r.is_remote ? `yes${r.remote_host ? ` (${r.remote_host})` : ''}` : 'no'} />
+                            <Detail label="GPU/VRAM" value={r.gpu ? `${r.gpu}${r.gpu_memory_gb ? ` / ${r.gpu_memory_gb.toFixed(1)}GB` : ''}` : r.gpu_memory_gb ? `${r.gpu_memory_gb.toFixed(1)}GB VRAM in use` : 'not reported'} />
+                            <Detail label="Runtime" value={r.total_runtime_sec ? `${r.total_runtime_sec.toFixed(1)}s` : '—'} />
+                            <Detail label="Suites" value={suiteSummary(r)} />
+                            <Detail label="Submitted" value={r.submitted_at || r.timestamp || '—'} mono />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -209,6 +266,15 @@ function Stat({ label, value }: { label: string; value: string }) {
     <div className="metric-card stat-card">
       <div className="metric-label">{label}</div>
       <div className="metric-value">{value}</div>
+    </div>
+  )
+}
+
+function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="lb-detail-item">
+      <div className="lb-detail-label">{label}</div>
+      <div className={mono ? 'lb-detail-value mono' : 'lb-detail-value'}>{value}</div>
     </div>
   )
 }

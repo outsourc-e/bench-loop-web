@@ -169,6 +169,7 @@ async function handleLeaderboard(env: Env): Promise<Response> {
   const runs = (results as any[]).map((r) => ({
     id: r.id,
     run_id: r.run_id,
+    machine_id: r.machine_id,
     timestamp: r.run_timestamp,
     submitted_at: r.submitted_at,
     model: r.model,
