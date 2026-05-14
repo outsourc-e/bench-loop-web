@@ -100,6 +100,21 @@ export default function LeaderboardPage() {
     return { totalRuns, fullRuns, uniqueModels, uniqueMachines, bestOverall, fastestUsable, bestAgent }
   }, [runs, qualityFloor])
 
+  const activeFilterChips = useMemo(() => {
+    const chips: string[] = []
+    if (scope === 'full') chips.push('full benchmarks')
+    if (harnessFilter !== 'all') chips.push(`${harnessFilter} harness`)
+    if (providerFilter !== PROVIDER_FILTER_ALL) chips.push(providerFilter)
+    if (hardwareFilter !== HARDWARE_FILTER_ALL) chips.push(hardwareFilter)
+    if (publisherFilter !== PUBLISHER_FILTER_ALL) chips.push(publisherFilter)
+    if (qualityFloor > 0) chips.push(qualityFloorLabel(qualityFloor))
+    if (search.trim()) chips.push(`search: ${search.trim()}`)
+    return chips
+  }, [scope, harnessFilter, providerFilter, hardwareFilter, publisherFilter, qualityFloor, search])
+
+  const filteredCount = ranked.length
+  const totalCount = runs.length
+
   return (
     <div>
       <div className="page-kicker">Public leaderboard</div>
@@ -140,6 +155,32 @@ export default function LeaderboardPage() {
       )}
 
       <div className="card lb-filters">
+        <div className="lb-filters-header">
+          <div>
+            <div className="page-kicker lb-kicker">Quality-aware ranking</div>
+            <div className="lb-filter-summary">
+              Showing <strong>{filteredCount}</strong> of <strong>{totalCount}</strong> published runs
+            </div>
+          </div>
+          {activeFilterChips.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-ghost lb-reset-btn"
+              onClick={() => {
+                setMode('overall')
+                setSearch('')
+                setScope('all')
+                setHarnessFilter('all')
+                setHardwareFilter(HARDWARE_FILTER_ALL)
+                setProviderFilter(PROVIDER_FILTER_ALL)
+                setPublisherFilter(PUBLISHER_FILTER_ALL)
+                setQualityFloor(60)
+              }}
+            >
+              Reset filters
+            </button>
+          )}
+        </div>
         <div className="lb-rank-modes">
           {RANK_MODES.map((m) => (
             <button
@@ -193,6 +234,13 @@ export default function LeaderboardPage() {
             <option value="all">All scopes</option>
           </select>
         </div>
+        {activeFilterChips.length > 0 && (
+          <div className="lb-active-filters" aria-label="Active filters">
+            {activeFilterChips.map((chip) => (
+              <span key={chip} className="lb-filter-chip">{chip}</span>
+            ))}
+          </div>
+        )}
       </div>
 
       {loading && <div className="card">Loading public runs…</div>}
