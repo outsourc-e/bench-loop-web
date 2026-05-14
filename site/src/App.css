@@ -810,6 +810,27 @@
   justify-content: space-between;
 }
 
+.lb-filters-header {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.lb-kicker {
+  margin-bottom: var(--s-2);
+}
+
+.lb-filter-summary {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.lb-reset-btn {
+  padding-inline: 10px;
+}
+
 .lb-rank-modes {
   display: flex;
   gap: 6px;
@@ -822,6 +843,25 @@
   gap: 8px;
   align-items: center;
   margin-left: auto;
+}
+
+.lb-active-filters {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lb-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: var(--r-pill);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  font-weight: 700;
 }
 
 .lb-filter-controls input,
@@ -843,9 +883,17 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .lb-filters-header,
   .lb-filter-controls {
     margin-left: 0;
     width: 100%;
+  }
+  .lb-filters-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lb-reset-btn {
+    align-self: flex-start;
   }
   .lb-search,
   .lb-filter-controls select {
