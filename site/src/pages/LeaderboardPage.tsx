@@ -1,7 +1,17 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { useLeaderboard, type PublicRun } from '../hooks/useLeaderboard'
-
-type RankMode = 'overall' | 'agent' | 'quality' | 'speed' | 'tok_per_sec'
+import {
+  hasMeaningfulQuality,
+  machineLabel,
+  normalizedHardwareLabel,
+  providerLabel,
+  publisherLabel,
+  publisherName,
+  scoreOf,
+  suiteSummary,
+  timeAgo,
+  type RankMode,
+} from '../lib/leaderboard'
 
 const RANK_MODES: { id: RankMode; label: string }[] = [
   { id: 'overall', label: 'Overall' },
@@ -13,79 +23,25 @@ const RANK_MODES: { id: RankMode; label: string }[] = [
 
 const HARNESSES = ['all', 'raw', 'hermes', 'qwen', 'pi'] as const
 const HARDWARE_FILTER_ALL = 'all'
+const PROVIDER_FILTER_ALL = 'all'
+const PUBLISHER_FILTER_ALL = 'all'
+const QUALITY_FLOORS = [0, 40, 60, 75] as const
+
 type HarnessFilter = typeof HARNESSES[number]
 
 function scoreClass(score: number): string {
   return score >= 80 ? 'green' : score >= 60 ? 'yellow' : 'red'
 }
 
-function scoreOf(run: PublicRun, mode: RankMode): number {
-  switch (mode) {
-    case 'agent': return run.agent_score ?? -1
-    case 'quality': return run.quality_score
-    case 'speed': return run.speed_score
-    case 'tok_per_sec': return run.generation_tok_per_sec
-    default: return run.overall_score
-  }
+function qualityFloorLabel(value: number): string {
+  if (value <= 0) return 'Any quality'
+  return `Quality ${value}+`
 }
 
-function endpointPort(endpoint?: string): string {
-  if (!endpoint) return ''
-  try {
-    return new URL(endpoint).port || ''
-  } catch {
-    return ''
-  }
-}
-
-function machineLabel(run: PublicRun): string {
-  // Prefer actual GPU/CPU if known. For localhost tunnels, avoid showing plain
-  // "localhost" because that is the tunnel endpoint, not meaningful hardware.
-  if (run.hardware_label) return run.hardware_label
-  if (run.gpu) return run.gpu
-  if (run.cpu && run.system_memory_gb) return `${run.cpu} (${run.system_memory_gb.toFixed(0)}GB RAM)`
-  if (run.cpu) return run.cpu
-
-  if (run.is_remote) {
-    const port = endpointPort(run.endpoint)
-    // If hardware wasn't explicitly stamped, say so honestly and put tunnel details
-    // in the expanded row instead of pretending localhost is hardware.
-    if (port === '11435') return 'PC1 remote hardware'
-    if (port === '11436') return 'Studio remote hardware'
-    return `Remote hardware${port ? ` (:${port})` : ''}`
-  }
-
-  if (run.machine && run.machine !== 'localhost') return run.machine
-  return 'unknown hardware'
-}
-
-function suiteSummary(run: PublicRun): string {
-  const names = Object.keys(run.suites || {})
-  if (!names.length) return 'No suites recorded'
-  return names.join(', ')
-}
-
-function publisherName(run: PublicRun): string {
-  return (run.profile_name || '').trim()
-}
-
-function normalizedHardwareLabel(run: PublicRun): string {
-  const label = machineLabel(run).trim()
-  return label || 'unknown hardware'
-}
-
-function timeAgo(iso?: string): string {
-  if (!iso) return ''
-  const ms = Date.now() - new Date(iso).getTime()
-  if (isNaN(ms) || ms < 0) return ''
-  const s = Math.floor(ms / 1000)
-  if (s < 60) return `${s}s ago`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  return `${d}d ago`
+function bestRun(runs: PublicRun[], mode: RankMode, qualityFloor = 0): PublicRun | null {
+  const filtered = runs.filter((run) => (mode === 'agent' ? (run.agent_score ?? -1) >= 0 : true) && hasMeaningfulQuality(run, qualityFloor))
+  if (!filtered.length) return null
+  return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))[0] ?? null
 }
 
 export default function LeaderboardPage() {
@@ -95,53 +51,94 @@ export default function LeaderboardPage() {
   const [scope, setScope] = useState<'full' | 'all'>('all')
   const [harnessFilter, setHarnessFilter] = useState<HarnessFilter>('all')
   const [hardwareFilter, setHardwareFilter] = useState(HARDWARE_FILTER_ALL)
+  const [providerFilter, setProviderFilter] = useState(PROVIDER_FILTER_ALL)
+  const [publisherFilter, setPublisherFilter] = useState(PUBLISHER_FILTER_ALL)
+  const [qualityFloor, setQualityFloor] = useState<number>(60)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const ranked = useMemo(() => {
     const filtered = runs.filter((r) => {
-      if (search && !r.model.toLowerCase().includes(search.toLowerCase())) return false
-      if (mode === 'agent') return (r.agent_score ?? -1) >= 0
+      const query = search.trim().toLowerCase()
+      if (query) {
+        const haystack = [r.model, providerLabel(r), normalizedHardwareLabel(r), publisherLabel(r)]
+          .join(' ')
+          .toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
+      if (mode === 'agent' && (r.agent_score ?? -1) < 0) return false
       if (scope === 'full' && !r.is_full_benchmark) return false
       if (harnessFilter !== 'all' && (r.harness || 'raw') !== harnessFilter) return false
       if (hardwareFilter !== HARDWARE_FILTER_ALL && normalizedHardwareLabel(r) !== hardwareFilter) return false
+      if (providerFilter !== PROVIDER_FILTER_ALL && providerLabel(r) !== providerFilter) return false
+      if (publisherFilter !== PUBLISHER_FILTER_ALL && publisherLabel(r) !== publisherFilter) return false
+      if (!hasMeaningfulQuality(r, qualityFloor)) return false
       return true
     })
     return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))
-  }, [runs, mode, search, scope, harnessFilter, hardwareFilter])
+  }, [runs, mode, search, scope, harnessFilter, hardwareFilter, providerFilter, publisherFilter, qualityFloor])
 
   const hardwareOptions = useMemo(() => {
     return Array.from(new Set(runs.map((run) => normalizedHardwareLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  }, [runs])
+
+  const providerOptions = useMemo(() => {
+    return Array.from(new Set(runs.map((run) => providerLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  }, [runs])
+
+  const publisherOptions = useMemo(() => {
+    return Array.from(new Set(runs.map((run) => publisherLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
   }, [runs])
 
   const stats = useMemo(() => {
     const totalRuns = runs.length
     const fullRuns = runs.filter((r) => r.is_full_benchmark).length
     const uniqueModels = new Set(runs.map((r) => r.model)).size
-    const uniqueMachines = new Set(runs.map(machineLabel).filter((m) => m && m !== 'unknown')).size
-    const bestOverall = runs.length ? Math.max(...runs.map((r) => r.overall_score)) : 0
-    return { totalRuns, fullRuns, uniqueModels, uniqueMachines, bestOverall }
-  }, [runs])
+    const uniqueMachines = new Set(runs.map((r) => normalizedHardwareLabel(r)).filter((m) => m && m !== 'unknown hardware')).size
+    const bestOverall = bestRun(runs, 'overall', qualityFloor)
+    const fastestUsable = bestRun(runs, 'tok_per_sec', qualityFloor)
+    const bestAgent = bestRun(runs, 'agent', qualityFloor)
+    return { totalRuns, fullRuns, uniqueModels, uniqueMachines, bestOverall, fastestUsable, bestAgent }
+  }, [runs, qualityFloor])
 
   return (
     <div>
       <div className="page-kicker">Public leaderboard</div>
-      <h1>Local LLMs, scored on real work.</h1>
+      <h1>Real local runs. Not token-per-second theater.</h1>
       <p className="page-subtitle">
-        Submitted runs from real hardware. Every entry is reproducible — install BenchLoop, run the same suites,
-        compare your numbers. Dedup is best run per (model, harness) so models can't game the board with cherry-picked runs.
+        BenchLoop ranks models by useful work, not just raw throughput. The default board keeps a quality floor so a 200 tok/s gibberish run does not steal the podium.
       </p>
 
-      {/* Live stats strip */}
       {!loading && !error && runs.length > 0 && (
-        <div className="metric-grid metric-grid-tight" style={{ marginTop: 18, marginBottom: 18 }}>
-          <Stat label="Published runs" value={String(stats.totalRuns)} />
-          <Stat label="Full benchmarks" value={String(stats.fullRuns)} />
-          <Stat label="Unique models" value={String(stats.uniqueModels)} />
-          <Stat label="Unique machines" value={String(stats.uniqueMachines)} />
-        </div>
+        <>
+          <div className="metric-grid metric-grid-tight" style={{ marginTop: 18, marginBottom: 18 }}>
+            <Stat label="Published runs" value={String(stats.totalRuns)} />
+            <Stat label="Full benchmarks" value={String(stats.fullRuns)} />
+            <Stat label="Unique models" value={String(stats.uniqueModels)} />
+            <Stat label="Unique machines" value={String(stats.uniqueMachines)} />
+          </div>
+          <div className="lb-highlights-grid" style={{ marginBottom: 18 }}>
+            <HighlightCard
+              title="Best overall"
+              subtitle={`Quality floor: ${qualityFloorLabel(qualityFloor)}`}
+              run={stats.bestOverall}
+              score={stats.bestOverall ? `${stats.bestOverall.overall_score.toFixed(1)} overall` : '—'}
+            />
+            <HighlightCard
+              title="Fastest usable run"
+              subtitle={`Ranked by raw tok/s with ${qualityFloorLabel(qualityFloor).toLowerCase()}`}
+              run={stats.fastestUsable}
+              score={stats.fastestUsable ? `${stats.fastestUsable.generation_tok_per_sec.toFixed(1)} tok/s` : '—'}
+            />
+            <HighlightCard
+              title="Best agent loop"
+              subtitle="For people who care whether the model can actually finish the task"
+              run={stats.bestAgent}
+              score={stats.bestAgent?.agent_score != null ? `${stats.bestAgent.agent_score.toFixed(1)} agent` : '—'}
+            />
+          </div>
+        </>
       )}
 
-      {/* Filter bar */}
       <div className="card lb-filters">
         <div className="lb-rank-modes">
           {RANK_MODES.map((m) => (
@@ -158,7 +155,7 @@ export default function LeaderboardPage() {
         <div className="lb-filter-controls">
           <input
             type="search"
-            placeholder="Search model…"
+            placeholder="Search model, provider, hardware, publisher…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="lb-search"
@@ -168,10 +165,27 @@ export default function LeaderboardPage() {
               <option key={h} value={h}>{h === 'all' ? 'All harnesses' : `${h} harness`}</option>
             ))}
           </select>
+          <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}>
+            <option value={PROVIDER_FILTER_ALL}>All providers</option>
+            {providerOptions.map((provider) => (
+              <option key={provider} value={provider}>{provider}</option>
+            ))}
+          </select>
           <select value={hardwareFilter} onChange={(e) => setHardwareFilter(e.target.value)}>
             <option value={HARDWARE_FILTER_ALL}>All hardware</option>
             {hardwareOptions.map((hardware) => (
               <option key={hardware} value={hardware}>{hardware}</option>
+            ))}
+          </select>
+          <select value={publisherFilter} onChange={(e) => setPublisherFilter(e.target.value)}>
+            <option value={PUBLISHER_FILTER_ALL}>All publishers</option>
+            {publisherOptions.map((publisher) => (
+              <option key={publisher} value={publisher}>{publisher}</option>
+            ))}
+          </select>
+          <select value={String(qualityFloor)} onChange={(e) => setQualityFloor(Number(e.target.value))}>
+            {QUALITY_FLOORS.map((value) => (
+              <option key={value} value={value}>{qualityFloorLabel(value)}</option>
             ))}
           </select>
           <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')}>
@@ -187,7 +201,7 @@ export default function LeaderboardPage() {
         <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--text-dim)' }}>
           <strong style={{ color: 'var(--text)' }}>No runs match this filter.</strong>
           <p style={{ marginTop: 6 }}>
-            Install BenchLoop and run any benchmark — every completed run auto-publishes here.
+            Try lowering the quality floor or broadening the hardware/provider filters.
           </p>
         </div>
       )}
@@ -200,6 +214,7 @@ export default function LeaderboardPage() {
                 <th>#</th>
                 <th>Model</th>
                 <th>Harness</th>
+                <th>Provider</th>
                 <th>Hardware</th>
                 <th style={{ textAlign: 'right' }}>Overall</th>
                 <th style={{ textAlign: 'right' }}>Quality</th>
@@ -214,10 +229,10 @@ export default function LeaderboardPage() {
             <tbody>
               {ranked.map((r, i) => {
                 const expanded = expandedId === r.id
+                const name = publisherName(r)
                 return (
-                  <>
+                  <Fragment key={r.id}>
                     <tr
-                      key={r.id}
                       className="lb-row-clickable"
                       onClick={() => setExpandedId(expanded ? null : r.id)}
                       title="Click for run details"
@@ -225,26 +240,38 @@ export default function LeaderboardPage() {
                       <td className="lb-score">{i + 1}</td>
                       <td>
                         <strong>{r.model}</strong>
-                        {publisherName(r) && (
-                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: '0.74rem' }}>
+                        {name && (
+                          <div className="publisher-inline-row">
                             {r.profile_avatar_url ? (
                               <img
                                 src={r.profile_avatar_url}
-                                alt={publisherName(r)}
-                                style={{ width: 18, height: 18, borderRadius: '999px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.14)' }}
+                                alt={name}
+                                className="publisher-avatar"
                               />
                             ) : (
-                              <span style={{ width: 18, height: 18, borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', color: 'var(--text)', fontSize: '0.66rem' }}>
-                                {publisherName(r).slice(0, 1).toUpperCase()}
+                              <span className="publisher-avatar publisher-avatar-fallback">
+                                {name.slice(0, 1).toUpperCase()}
                               </span>
                             )}
-                            <span>{publisherName(r)}</span>
+                            {r.profile_url ? (
+                              <a
+                                href={r.profile_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                {name}
+                              </a>
+                            ) : (
+                              <span>{name}</span>
+                            )}
                           </div>
                         )}
                         {r.is_full_benchmark ? <span className="lb-badge full">FULL</span> : <span className="lb-badge partial">PARTIAL</span>}
                         {r.is_agent_only && <span className="lb-badge agent">AGENT</span>}
                       </td>
                       <td><code>{r.harness || 'raw'}</code></td>
+                      <td>{providerLabel(r)}</td>
                       <td title={`${r.cpu || ''}${r.gpu ? ' / ' + r.gpu : ''}${r.gpu_memory_gb ? ' / ' + r.gpu_memory_gb + 'GB VRAM' : ''}`}>
                         {machineLabel(r)}
                       </td>
@@ -266,15 +293,15 @@ export default function LeaderboardPage() {
                       </td>
                     </tr>
                     {expanded && (
-                      <tr key={`${r.id}-details`} className="lb-details-row">
-                        <td colSpan={12}>
+                      <tr className="lb-details-row">
+                        <td colSpan={13}>
                           <div className="lb-details-grid">
                             <Detail label="Run ID" value={r.run_id || r.id} mono />
-                            <Detail label="Published by" value={publisherName(r) || 'anonymous'} />
+                            <Detail label="Published by" value={publisherLabel(r)} />
                             <Detail label="Profile" value={r.profile_url || '—'} mono />
                             <Detail label="Posted by / Machine" value={machineLabel(r)} />
                             <Detail label="Machine ID" value={r.machine_id || '—'} mono />
-                            <Detail label="Provider" value={r.provider || '—'} />
+                            <Detail label="Provider" value={providerLabel(r)} />
                             <Detail label="Harness" value={r.harness || 'raw'} mono />
                             <Detail label="Command" value={r.command_used || '—'} mono />
                             <Detail label="Scope" value={r.is_full_benchmark ? 'Full benchmark' : 'Partial / smoke run'} />
@@ -289,7 +316,7 @@ export default function LeaderboardPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -298,8 +325,7 @@ export default function LeaderboardPage() {
       )}
 
       <p style={{ marginTop: 24, color: 'var(--text-dim)', fontSize: '0.8rem' }}>
-        Hardware shown is what the local CLI detected at run time. Tunneled or remote endpoints may report
-        the orchestrator's hardware rather than the model server's. We're working on cleaner remote attribution.
+        Hardware shown is what the local CLI detected at run time. Tunneled or remote endpoints may report the orchestrator's hardware rather than the model server's. We keep the quality floor on by default because raw tok/s without useful output is just leaderboard cosplay.
       </p>
     </div>
   )
@@ -319,6 +345,25 @@ function Detail({ label, value, mono }: { label: string; value: string; mono?: b
     <div className="lb-detail-item">
       <div className="lb-detail-label">{label}</div>
       <div className={mono ? 'lb-detail-value mono' : 'lb-detail-value'}>{value}</div>
+    </div>
+  )
+}
+
+function HighlightCard({ title, subtitle, run, score }: { title: string; subtitle: string; run: PublicRun | null; score: string }) {
+  return (
+    <div className="card lb-highlight-card">
+      <div className="metric-label">{title}</div>
+      <div className="lb-highlight-score">{score}</div>
+      {run ? (
+        <>
+          <strong>{run.model}</strong>
+          <div className="lb-highlight-meta">{providerLabel(run)} · {machineLabel(run)}</div>
+          <div className="lb-highlight-meta">{publisherLabel(run)} · {run.harness || 'raw'} harness</div>
+        </>
+      ) : (
+        <div className="lb-highlight-meta">No matching run yet</div>
+      )}
+      <p className="lb-highlight-subtitle">{subtitle}</p>
     </div>
   )
 }

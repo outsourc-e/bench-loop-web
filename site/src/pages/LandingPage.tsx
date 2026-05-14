@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { useLeaderboard } from '../hooks/useLeaderboard'
+import { useLeaderboard, type PublicRun } from '../hooks/useLeaderboard'
 import CliInstall from '../components/CliInstall'
 import LoopLogo from '../components/LoopLogo'
+import { hasMeaningfulQuality, machineLabel, providerLabel, publisherLabel, scoreOf } from '../lib/leaderboard'
 
 const featureCards = [
   {
@@ -42,7 +43,7 @@ const howSteps: { num: string; title: string; body: string; code?: string }[] = 
   {
     num: '03',
     title: 'Compare + publish',
-    body: 'Every completed run auto-publishes to the public leaderboard at bench-loop.com so others can compare against your hardware.',
+    body: 'Every completed run auto-publishes to the public leaderboard with your optional profile name, avatar, and hardware context.',
     code: '→ published to https://bench-loop.com/leaderboard',
   },
 ]
@@ -57,10 +58,25 @@ const suiteRows: [string, string][] = [
   ['agent', 'Multi-turn agent loop — BenchLoop executes tools and feeds results back'],
 ]
 
+function featuredRun(runs: PublicRun[], mode: 'overall' | 'tok_per_sec' | 'agent', qualityFloor = 60): PublicRun | null {
+  const filtered = runs.filter((run) => hasMeaningfulQuality(run, qualityFloor) && (mode !== 'agent' || (run.agent_score ?? -1) >= 0))
+  if (!filtered.length) return null
+  return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))[0] ?? null
+}
+
 export default function LandingPage() {
   const { runs, loading } = useLeaderboard()
-  const best = runs[0]
+  const best = featuredRun(runs, 'overall', 60) ?? runs[0]
   const top = runs.slice(0, 4)
+  const bestOverall = featuredRun(runs, 'overall', 60)
+  const fastestUsable = featuredRun(runs, 'tok_per_sec', 60)
+  const bestAgent = featuredRun(runs, 'agent', 60)
+  const featuredPublishers = runs
+    .filter((run, index, list) => {
+      const label = publisherLabel(run)
+      return label !== 'anonymous' && list.findIndex((entry) => publisherLabel(entry) === label) === index
+    })
+    .slice(0, 5)
 
   return (
     <div className="landing-page">
@@ -111,7 +127,7 @@ export default function LandingPage() {
             </div>
             <div className="terminal-progress"><span style={{ width: '83%' }} /></div>
             <div className="terminal-foot">
-              <span className="dot live" /> 7 suites · {best?.harness || 'raw'} harness · persisted to <code>~/.bench-loop/runs</code>
+              <span className="dot live" /> 7 suites · {best?.harness || 'raw'} harness · quality floor 60+ on the public board
             </div>
           </div>
         </div>
@@ -120,8 +136,40 @@ export default function LandingPage() {
       <section className="metric-grid metric-grid-tight">
         <Stat label="Runs indexed" value={loading ? '…' : String(runs.length)} />
         <Stat label="Full benchmarks" value={loading ? '…' : String(runs.filter((r) => r.is_full_benchmark).length)} />
-        <Stat label="Best overall" value={best ? best.overall_score.toFixed(1) : '—'} />
+        <Stat label="Best overall" value={bestOverall ? bestOverall.overall_score.toFixed(1) : '—'} />
         <Stat label="Top model" value={best ? best.model.split('/').pop() || best.model : '—'} compact />
+      </section>
+
+      <section>
+        <div className="page-header">
+          <div>
+            <div className="page-kicker">Why this board is different</div>
+            <h2 className="page-title">Fast is nice. Useful is the point.</h2>
+            <p className="page-subtitle">
+              Localmaxxing-style speed charts are fun, but if a model is spitting gibberish at 200 tok/s it should not win. BenchLoop keeps quality, reliability, and agent behavior in the loop.
+            </p>
+          </div>
+        </div>
+        <div className="lb-highlights-grid">
+          <FeaturedRunCard
+            title="Best overall"
+            blurb="The run you would actually want to copy."
+            run={bestOverall}
+            stat={bestOverall ? `${bestOverall.overall_score.toFixed(1)} overall` : '—'}
+          />
+          <FeaturedRunCard
+            title="Fastest usable"
+            blurb="Raw tok/s, but only after clearing a quality floor."
+            run={fastestUsable}
+            stat={fastestUsable ? `${fastestUsable.generation_tok_per_sec.toFixed(1)} tok/s` : '—'}
+          />
+          <FeaturedRunCard
+            title="Best agent loop"
+            blurb="Because some models ace the benchmark and still faceplant on real tasks."
+            run={bestAgent}
+            stat={bestAgent?.agent_score != null ? `${bestAgent.agent_score.toFixed(1)} agent` : '—'}
+          />
+        </div>
       </section>
 
       <section>
@@ -189,6 +237,7 @@ export default function LandingPage() {
 
         <div className="card preview-card">
           <div className="page-kicker">Live leaderboard</div>
+          <div className="preview-note">Default board uses a quality floor so speed-only nonsense does not dominate.</div>
           {top.length === 0 ? (
             <div className="preview-row">
               <span className="preview-rank">—</span>
@@ -197,11 +246,12 @@ export default function LandingPage() {
             </div>
           ) : (
             top.map((r, i) => (
-              <div key={r.id} className="preview-row">
+              <div key={r.id} className="preview-row preview-row-rich">
                 <span className="preview-rank">#{i + 1}</span>
                 <div className="preview-model-wrap">
                   <span className="preview-model">{r.model}</span>
-                  <span className="preview-harness">{r.harness || 'raw'} harness</span>
+                  <span className="preview-harness">{r.harness || 'raw'} harness · {providerLabel(r)}</span>
+                  <span className="preview-subline">{machineLabel(r)} · {publisherLabel(r)}</span>
                 </div>
                 <span className={`preview-score ${r.overall_score >= 80 ? 'green' : ''}`}>{r.overall_score.toFixed(1)}</span>
               </div>
@@ -212,6 +262,42 @@ export default function LandingPage() {
           </Link>
         </div>
       </section>
+
+      {featuredPublishers.length > 0 && (
+        <section>
+          <div className="page-header">
+            <div>
+              <div className="page-kicker">Published by real builders</div>
+              <h2 className="page-title">Runs can carry a real profile.</h2>
+              <p className="page-subtitle">
+                Add your name, avatar, and link when you publish so great setups are traceable back to the people who tuned them.
+              </p>
+            </div>
+          </div>
+          <div className="publisher-grid">
+            {featuredPublishers.map((run) => (
+              <a
+                key={`${run.id}-${publisherLabel(run)}`}
+                className="card publisher-card"
+                href={run.profile_url || undefined}
+                target={run.profile_url ? '_blank' : undefined}
+                rel={run.profile_url ? 'noreferrer' : undefined}
+              >
+                {run.profile_avatar_url ? (
+                  <img src={run.profile_avatar_url} alt={publisherLabel(run)} className="publisher-card-avatar" />
+                ) : (
+                  <div className="publisher-card-avatar publisher-card-avatar-fallback">{publisherLabel(run).slice(0, 1).toUpperCase()}</div>
+                )}
+                <div>
+                  <strong>{publisherLabel(run)}</strong>
+                  <div className="publisher-card-meta">{run.model}</div>
+                  <div className="publisher-card-meta">{machineLabel(run)}</div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section>
         <div className="page-header">
@@ -231,7 +317,7 @@ export default function LandingPage() {
           <div className="page-kicker">Ship path</div>
           <h2>Ready to publish your own runs?</h2>
           <p>
-            Run locally. Every completed benchmark auto-publishes to the public leaderboard, with full per-suite scores and hardware info. Reproducibility is the whole point.
+            Run locally. Every completed benchmark auto-publishes to the public leaderboard, with per-suite scores, hardware context, and optional profile attribution. Reproducibility is the whole point.
           </p>
         </div>
         <div className="launch-actions">
@@ -257,6 +343,25 @@ function Stat({ label, value, compact }: { label: string; value: string; compact
     <div className="metric-card stat-card">
       <div className="metric-label">{label}</div>
       <div className={`metric-value ${compact ? 'metric-value-compact' : ''}`}>{value}</div>
+    </div>
+  )
+}
+
+function FeaturedRunCard({ title, blurb, run, stat }: { title: string; blurb: string; run: PublicRun | null; stat: string }) {
+  return (
+    <div className="card lb-highlight-card">
+      <div className="metric-label">{title}</div>
+      <div className="lb-highlight-score">{stat}</div>
+      {run ? (
+        <>
+          <strong>{run.model}</strong>
+          <div className="lb-highlight-meta">{providerLabel(run)} · {machineLabel(run)}</div>
+          <div className="lb-highlight-meta">{publisherLabel(run)} · {run.harness || 'raw'} harness</div>
+        </>
+      ) : (
+        <div className="lb-highlight-meta">No matching run yet</div>
+      )}
+      <p className="lb-highlight-subtitle">{blurb}</p>
     </div>
   )
 }
