@@ -104,6 +104,9 @@ export interface PullInfo {
 
 export interface RunSummary {
   id: string
+  status?: string
+  error?: string
+  traceback?: string
   timestamp: string
   model: string
   quantization?: string
@@ -123,6 +126,10 @@ export interface RunSummary {
   backend?: string
   harness?: string
   machine: string
+  profile_name?: string
+  profile_avatar_url?: string
+  profile_url?: string
+  command_used?: string
   gpu?: string
   gpu_memory_gb?: number
   cpu?: string
@@ -398,6 +405,9 @@ export async function startBenchmark(params: {
   suites: string[]
   provider?: string
   harness?: string
+  profile_name?: string
+  profile_avatar_url?: string
+  profile_url?: string
 }): Promise<{ run_id: string }> {
   const resp = await fetch('/api/benchmark/run', {
     method: 'POST',

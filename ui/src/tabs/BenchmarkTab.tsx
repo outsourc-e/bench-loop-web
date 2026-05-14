@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useModels, useRuns, startBenchmark, type RunSummary } from '../hooks/useApi'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -13,6 +14,7 @@ const ALL_SUITES = [
 ] as const
 
 const SUITE_META = Object.fromEntries(ALL_SUITES.map((suite) => [suite.id, suite]))
+const PROFILE_STORAGE_KEY = 'benchloop.publish_profile'
 
 /**
  * Turn a raw backend health-check failure into an actionable diagnosis.
@@ -131,6 +133,20 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
   const [endpoint, setEndpoint] = useState('http://localhost:11434')
   const [selectedSuites, setSelectedSuites] = useState<string[]>(['speed', 'toolcall', 'coding', 'dataextract', 'instructfollow', 'reasonmath', 'agent'])
   const [selectedHarness, setSelectedHarness] = useState<string>('raw')
+  const [publishProfile, setPublishProfile] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PROFILE_STORAGE_KEY)
+      if (!raw) return { name: '', avatar_url: '', profile_url: '' }
+      const parsed = JSON.parse(raw)
+      return {
+        name: typeof parsed?.name === 'string' ? parsed.name : '',
+        avatar_url: typeof parsed?.avatar_url === 'string' ? parsed.avatar_url : '',
+        profile_url: typeof parsed?.profile_url === 'string' ? parsed.profile_url : '',
+      }
+    } catch {
+      return { name: '', avatar_url: '', profile_url: '' }
+    }
+  })
   const [running, setRunning] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
   const [events, setEvents] = useState<BenchmarkEvent[]>([])
@@ -165,6 +181,14 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
       setSelectedModel(allModels[0].name)
     }
   }, [allModels, selectedModel])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(publishProfile))
+    } catch {
+      /* localStorage unavailable */
+    }
+  }, [publishProfile])
 
   const toggleSuite = (id: string) => {
     setSelectedSuites((prev) =>
@@ -239,6 +263,9 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
         suites: selectedSuites,
         provider: resolvedProviderName,
         harness: selectedHarness,
+        profile_name: publishProfile.name.trim() || undefined,
+        profile_avatar_url: publishProfile.avatar_url.trim() || undefined,
+        profile_url: publishProfile.profile_url.trim() || undefined,
       })
       setRunId(run_id)
 
@@ -438,6 +465,46 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
                 {suite.label}
               </label>
             ))}
+          </div>
+
+          <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                Publish profile <span style={{ color: 'var(--text-muted)' }}>— optional public name + avatar on bench-loop.com</span>
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setPublishProfile({ name: '', avatar_url: '', profile_url: '' })}
+                disabled={running}
+                style={{ padding: '4px 10px', fontSize: '0.72rem' }}
+              >
+                Clear
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <input
+                className="input"
+                placeholder="Display name"
+                value={publishProfile.name}
+                onChange={(e) => setPublishProfile((prev) => ({ ...prev, name: e.target.value }))}
+                disabled={running}
+              />
+              <input
+                className="input"
+                placeholder="Avatar URL"
+                value={publishProfile.avatar_url}
+                onChange={(e) => setPublishProfile((prev) => ({ ...prev, avatar_url: e.target.value }))}
+                disabled={running}
+              />
+              <input
+                className="input"
+                placeholder="Profile URL"
+                value={publishProfile.profile_url}
+                onChange={(e) => setPublishProfile((prev) => ({ ...prev, profile_url: e.target.value }))}
+                disabled={running}
+              />
+            </div>
           </div>
         </div>
 
@@ -813,6 +880,7 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
               <th style={{ ...th, textAlign: 'left' }}>Model</th>
+              <th style={{ ...th, textAlign: 'left' }}>Status</th>
               <th style={th}>Overall</th>
               <th style={th}>Quality</th>
               <th style={th}>Speed</th>
@@ -822,6 +890,7 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
               <th style={{ ...th, textAlign: 'left' }}>Hardware</th>
               <th style={th}>Runtime</th>
               <th style={th}>Date</th>
+              <th style={{ ...th, textAlign: 'left' }}>Details</th>
             </tr>
           </thead>
           <tbody>
@@ -834,10 +903,31 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
               const ttft = typeof run.ttft_ms === 'number' ? run.ttft_ms : 0
               const runtimeSec = typeof run.total_runtime_sec === 'number' ? run.total_runtime_sec : null
               const sysMem = typeof run.system_memory_gb === 'number' ? run.system_memory_gb : null
+              const failed = run.status === 'failed'
+              const statusLabel = failed ? 'Failed' : run.status === 'completed' || !run.status ? 'Completed' : run.status
               return (
                 <tr key={run.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 10px', fontWeight: 500 }} title={run.harness ? `${modelName} (${run.harness})` : modelName}>
                     {modelName.length > 30 ? modelName.slice(0, 28) + '…' : modelName}
+                  </td>
+                  <td style={{ padding: '10px 10px', textAlign: 'left' }} title={failed ? run.error || 'Run failed' : statusLabel}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: failed ? '#ff8888' : 'var(--text-dim)',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                    }}>
+                      <span style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: failed ? '#ff5555' : '#22c55e',
+                        boxShadow: failed ? '0 0 8px rgba(255,85,85,0.45)' : '0 0 8px rgba(34,197,94,0.35)',
+                      }} />
+                      {statusLabel}
+                    </span>
                   </td>
                   <td style={td}><ScoreBadge score={run.overall_score} size="sm" /></td>
                   <td style={td}><ScoreBadge score={run.quality_score} size="sm" /></td>
@@ -850,6 +940,11 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
                   </td>
                   <td style={{ ...td, ...mono, fontSize: '0.72rem' }}>{runtimeSec != null ? `${runtimeSec.toFixed(1)}s` : '-'}</td>
                   <td style={{ ...td, color: 'var(--text-dim)', fontSize: '0.72rem' }}>{run.timestamp ? new Date(run.timestamp).toLocaleDateString() : '-'}</td>
+                  <td style={{ padding: '10px 10px', textAlign: 'left' }}>
+                    <Link to={`/runs/${run.id}`} style={{ color: failed ? '#ffb4b4' : 'var(--accent)', fontSize: '0.72rem', textDecoration: 'none' }}>
+                      {failed ? 'View error' : 'View run'}
+                    </Link>
+                  </td>
                 </tr>
               )
             })}

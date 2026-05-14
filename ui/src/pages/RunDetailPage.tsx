@@ -63,12 +63,30 @@ export default function RunDetailPage() {
     return <div style={{ padding: 24, color: 'var(--text-dim)' }}>Loading run {runId}…</div>
   }
 
-  if (!data || data.error) {
+  if (!data) {
     return (
       <div style={{ padding: 24 }}>
         <div className="empty-state">
           <h3>Run not found</h3>
-          <p>{data?.error || `No run with id ${runId}`}</p>
+          <p>No run with id {runId}</p>
+          <button
+            onClick={() => navigate('/leaderboard')}
+            style={{ marginTop: 12, padding: '6px 14px', background: 'var(--bg-elev)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, cursor: 'pointer' }}
+          >
+            Back to leaderboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const missingRun = data.error && !data.result && data.status !== 'failed'
+  if (missingRun) {
+    return (
+      <div style={{ padding: 24 }}>
+        <div className="empty-state">
+          <h3>Run not found</h3>
+          <p>{data.error || `No run with id ${runId}`}</p>
           <button
             onClick={() => navigate('/leaderboard')}
             style={{ marginTop: 12, padding: '6px 14px', background: 'var(--bg-elev)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 6, cursor: 'pointer' }}

@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS runs (
   remote_host TEXT,
   endpoint TEXT,
   hardware_label TEXT,
+  profile_name TEXT,
+  profile_avatar_url TEXT,
+  profile_url TEXT,
+  command_used TEXT,
 
   overall_score REAL NOT NULL,
   quality_score REAL,
