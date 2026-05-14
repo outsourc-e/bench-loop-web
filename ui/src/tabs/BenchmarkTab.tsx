@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useModels, useRuns, startBenchmark, type RunSummary } from '../hooks/useApi'
 import ScoreBadge from '../components/ScoreBadge'
 
@@ -879,6 +880,7 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
               <th style={{ ...th, textAlign: 'left' }}>Model</th>
+              <th style={{ ...th, textAlign: 'left' }}>Status</th>
               <th style={th}>Overall</th>
               <th style={th}>Quality</th>
               <th style={th}>Speed</th>
@@ -888,6 +890,7 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
               <th style={{ ...th, textAlign: 'left' }}>Hardware</th>
               <th style={th}>Runtime</th>
               <th style={th}>Date</th>
+              <th style={{ ...th, textAlign: 'left' }}>Details</th>
             </tr>
           </thead>
           <tbody>
@@ -900,10 +903,31 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
               const ttft = typeof run.ttft_ms === 'number' ? run.ttft_ms : 0
               const runtimeSec = typeof run.total_runtime_sec === 'number' ? run.total_runtime_sec : null
               const sysMem = typeof run.system_memory_gb === 'number' ? run.system_memory_gb : null
+              const failed = run.status === 'failed'
+              const statusLabel = failed ? 'Failed' : run.status === 'completed' || !run.status ? 'Completed' : run.status
               return (
                 <tr key={run.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 10px', fontWeight: 500 }} title={run.harness ? `${modelName} (${run.harness})` : modelName}>
                     {modelName.length > 30 ? modelName.slice(0, 28) + '…' : modelName}
+                  </td>
+                  <td style={{ padding: '10px 10px', textAlign: 'left' }} title={failed ? run.error || 'Run failed' : statusLabel}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      color: failed ? '#ff8888' : 'var(--text-dim)',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                    }}>
+                      <span style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: failed ? '#ff5555' : '#22c55e',
+                        boxShadow: failed ? '0 0 8px rgba(255,85,85,0.45)' : '0 0 8px rgba(34,197,94,0.35)',
+                      }} />
+                      {statusLabel}
+                    </span>
                   </td>
                   <td style={td}><ScoreBadge score={run.overall_score} size="sm" /></td>
                   <td style={td}><ScoreBadge score={run.quality_score} size="sm" /></td>
@@ -916,6 +940,11 @@ function RunHistory({ runs }: { runs: RunSummary[] }) {
                   </td>
                   <td style={{ ...td, ...mono, fontSize: '0.72rem' }}>{runtimeSec != null ? `${runtimeSec.toFixed(1)}s` : '-'}</td>
                   <td style={{ ...td, color: 'var(--text-dim)', fontSize: '0.72rem' }}>{run.timestamp ? new Date(run.timestamp).toLocaleDateString() : '-'}</td>
+                  <td style={{ padding: '10px 10px', textAlign: 'left' }}>
+                    <Link to={`/runs/${run.id}`} style={{ color: failed ? '#ffb4b4' : 'var(--accent)', fontSize: '0.72rem', textDecoration: 'none' }}>
+                      {failed ? 'View error' : 'View run'}
+                    </Link>
+                  </td>
                 </tr>
               )
             })}

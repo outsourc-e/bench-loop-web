@@ -276,6 +276,7 @@ export default function LeaderboardPage() {
                             <Detail label="Machine ID" value={r.machine_id || '—'} mono />
                             <Detail label="Provider" value={r.provider || '—'} />
                             <Detail label="Harness" value={r.harness || 'raw'} mono />
+                            <Detail label="Command" value={r.command_used || '—'} mono />
                             <Detail label="Scope" value={r.is_full_benchmark ? 'Full benchmark' : 'Partial / smoke run'} />
                             <Detail label="Endpoint" value={r.endpoint || (r.is_remote ? 'remote endpoint' : 'local default')} mono />
                             <Detail label="Remote" value={r.is_remote ? `yes${r.remote_host ? ` (${r.remote_host})` : ''}` : 'no'} />

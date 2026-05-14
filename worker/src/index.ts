@@ -55,6 +55,7 @@ interface RunPayload {
     avatar_url?: string
     profile_url?: string
   }
+  command_used?: string
   provider?: string
   harness?: string
   total_runtime_sec?: number
@@ -114,12 +115,12 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       harness, provider,
       cpu, gpu, gpu_memory_gb, system_memory_gb, os,
       is_remote, remote_host, endpoint, hardware_label,
-      profile_name, profile_avatar_url, profile_url,
+      profile_name, profile_avatar_url, profile_url, command_used,
       overall_score, quality_score, speed_score, reliability_score, value_score,
       generation_tok_per_sec, ttft_ms, total_runtime_sec,
       is_full_benchmark, is_quality_full, is_agent_only,
       suites_json, submitter_ip, user_agent
-    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?)`,
+    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?)`,
   )
     .bind(
       id,
@@ -145,6 +146,7 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       p.profile?.name || "",
       p.profile?.avatar_url || "",
       p.profile?.profile_url || "",
+      p.command_used || "",
       p.overall_score!,
       p.quality_score ?? null,
       p.speed_score ?? null,
@@ -194,6 +196,7 @@ async function handleLeaderboard(env: Env): Promise<Response> {
     profile_name: r.profile_name,
     profile_avatar_url: r.profile_avatar_url,
     profile_url: r.profile_url,
+    command_used: r.command_used,
     cpu: r.cpu,
     gpu: r.gpu,
     gpu_memory_gb: r.gpu_memory_gb,

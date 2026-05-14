@@ -104,6 +104,9 @@ export interface PullInfo {
 
 export interface RunSummary {
   id: string
+  status?: string
+  error?: string
+  traceback?: string
   timestamp: string
   model: string
   quantization?: string
@@ -126,6 +129,7 @@ export interface RunSummary {
   profile_name?: string
   profile_avatar_url?: string
   profile_url?: string
+  command_used?: string
   gpu?: string
   gpu_memory_gb?: number
   cpu?: string

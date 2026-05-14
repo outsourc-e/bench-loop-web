@@ -14,6 +14,7 @@ export interface PublicRun {
   profile_name?: string
   profile_avatar_url?: string
   profile_url?: string
+  command_used?: string
   cpu?: string
   gpu?: string
   gpu_memory_gb?: number
