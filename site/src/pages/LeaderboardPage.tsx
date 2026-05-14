@@ -12,6 +12,7 @@ const RANK_MODES: { id: RankMode; label: string }[] = [
 ]
 
 const HARNESSES = ['all', 'raw', 'hermes', 'qwen', 'pi'] as const
+const HARDWARE_FILTER_ALL = 'all'
 type HarnessFilter = typeof HARNESSES[number]
 
 function scoreClass(score: number): string {
@@ -64,6 +65,15 @@ function suiteSummary(run: PublicRun): string {
   return names.join(', ')
 }
 
+function publisherName(run: PublicRun): string {
+  return (run.profile_name || '').trim()
+}
+
+function normalizedHardwareLabel(run: PublicRun): string {
+  const label = machineLabel(run).trim()
+  return label || 'unknown hardware'
+}
+
 function timeAgo(iso?: string): string {
   if (!iso) return ''
   const ms = Date.now() - new Date(iso).getTime()
@@ -84,6 +94,7 @@ export default function LeaderboardPage() {
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'full' | 'all'>('all')
   const [harnessFilter, setHarnessFilter] = useState<HarnessFilter>('all')
+  const [hardwareFilter, setHardwareFilter] = useState(HARDWARE_FILTER_ALL)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const ranked = useMemo(() => {
@@ -92,10 +103,15 @@ export default function LeaderboardPage() {
       if (mode === 'agent') return (r.agent_score ?? -1) >= 0
       if (scope === 'full' && !r.is_full_benchmark) return false
       if (harnessFilter !== 'all' && (r.harness || 'raw') !== harnessFilter) return false
+      if (hardwareFilter !== HARDWARE_FILTER_ALL && normalizedHardwareLabel(r) !== hardwareFilter) return false
       return true
     })
     return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))
-  }, [runs, mode, search, scope, harnessFilter])
+  }, [runs, mode, search, scope, harnessFilter, hardwareFilter])
+
+  const hardwareOptions = useMemo(() => {
+    return Array.from(new Set(runs.map((run) => normalizedHardwareLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+  }, [runs])
 
   const stats = useMemo(() => {
     const totalRuns = runs.length
@@ -152,6 +168,12 @@ export default function LeaderboardPage() {
               <option key={h} value={h}>{h === 'all' ? 'All harnesses' : `${h} harness`}</option>
             ))}
           </select>
+          <select value={hardwareFilter} onChange={(e) => setHardwareFilter(e.target.value)}>
+            <option value={HARDWARE_FILTER_ALL}>All hardware</option>
+            {hardwareOptions.map((hardware) => (
+              <option key={hardware} value={hardware}>{hardware}</option>
+            ))}
+          </select>
           <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')}>
             <option value="full">Full benchmarks only</option>
             <option value="all">All scopes</option>
@@ -203,6 +225,22 @@ export default function LeaderboardPage() {
                       <td className="lb-score">{i + 1}</td>
                       <td>
                         <strong>{r.model}</strong>
+                        {publisherName(r) && (
+                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-dim)', fontSize: '0.74rem' }}>
+                            {r.profile_avatar_url ? (
+                              <img
+                                src={r.profile_avatar_url}
+                                alt={publisherName(r)}
+                                style={{ width: 18, height: 18, borderRadius: '999px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.14)' }}
+                              />
+                            ) : (
+                              <span style={{ width: 18, height: 18, borderRadius: '999px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.08)', color: 'var(--text)', fontSize: '0.66rem' }}>
+                                {publisherName(r).slice(0, 1).toUpperCase()}
+                              </span>
+                            )}
+                            <span>{publisherName(r)}</span>
+                          </div>
+                        )}
                         {r.is_full_benchmark ? <span className="lb-badge full">FULL</span> : <span className="lb-badge partial">PARTIAL</span>}
                         {r.is_agent_only && <span className="lb-badge agent">AGENT</span>}
                       </td>
@@ -232,6 +270,8 @@ export default function LeaderboardPage() {
                         <td colSpan={12}>
                           <div className="lb-details-grid">
                             <Detail label="Run ID" value={r.run_id || r.id} mono />
+                            <Detail label="Published by" value={publisherName(r) || 'anonymous'} />
+                            <Detail label="Profile" value={r.profile_url || '—'} mono />
                             <Detail label="Posted by / Machine" value={machineLabel(r)} />
                             <Detail label="Machine ID" value={r.machine_id || '—'} mono />
                             <Detail label="Provider" value={r.provider || '—'} />

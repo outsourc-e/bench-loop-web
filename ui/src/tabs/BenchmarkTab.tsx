@@ -13,6 +13,7 @@ const ALL_SUITES = [
 ] as const
 
 const SUITE_META = Object.fromEntries(ALL_SUITES.map((suite) => [suite.id, suite]))
+const PROFILE_STORAGE_KEY = 'benchloop.publish_profile'
 
 /**
  * Turn a raw backend health-check failure into an actionable diagnosis.
@@ -131,6 +132,20 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
   const [endpoint, setEndpoint] = useState('http://localhost:11434')
   const [selectedSuites, setSelectedSuites] = useState<string[]>(['speed', 'toolcall', 'coding', 'dataextract', 'instructfollow', 'reasonmath', 'agent'])
   const [selectedHarness, setSelectedHarness] = useState<string>('raw')
+  const [publishProfile, setPublishProfile] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PROFILE_STORAGE_KEY)
+      if (!raw) return { name: '', avatar_url: '', profile_url: '' }
+      const parsed = JSON.parse(raw)
+      return {
+        name: typeof parsed?.name === 'string' ? parsed.name : '',
+        avatar_url: typeof parsed?.avatar_url === 'string' ? parsed.avatar_url : '',
+        profile_url: typeof parsed?.profile_url === 'string' ? parsed.profile_url : '',
+      }
+    } catch {
+      return { name: '', avatar_url: '', profile_url: '' }
+    }
+  })
   const [running, setRunning] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
   const [events, setEvents] = useState<BenchmarkEvent[]>([])
@@ -165,6 +180,14 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
       setSelectedModel(allModels[0].name)
     }
   }, [allModels, selectedModel])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(publishProfile))
+    } catch {
+      /* localStorage unavailable */
+    }
+  }, [publishProfile])
 
   const toggleSuite = (id: string) => {
     setSelectedSuites((prev) =>
@@ -239,6 +262,9 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
         suites: selectedSuites,
         provider: resolvedProviderName,
         harness: selectedHarness,
+        profile_name: publishProfile.name.trim() || undefined,
+        profile_avatar_url: publishProfile.avatar_url.trim() || undefined,
+        profile_url: publishProfile.profile_url.trim() || undefined,
       })
       setRunId(run_id)
 
@@ -438,6 +464,46 @@ export default function BenchmarkTab({ preselectedModel, preselectedEndpoint, on
                 {suite.label}
               </label>
             ))}
+          </div>
+
+          <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                Publish profile <span style={{ color: 'var(--text-muted)' }}>— optional public name + avatar on bench-loop.com</span>
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setPublishProfile({ name: '', avatar_url: '', profile_url: '' })}
+                disabled={running}
+                style={{ padding: '4px 10px', fontSize: '0.72rem' }}
+              >
+                Clear
+              </button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+              <input
+                className="input"
+                placeholder="Display name"
+                value={publishProfile.name}
+                onChange={(e) => setPublishProfile((prev) => ({ ...prev, name: e.target.value }))}
+                disabled={running}
+              />
+              <input
+                className="input"
+                placeholder="Avatar URL"
+                value={publishProfile.avatar_url}
+                onChange={(e) => setPublishProfile((prev) => ({ ...prev, avatar_url: e.target.value }))}
+                disabled={running}
+              />
+              <input
+                className="input"
+                placeholder="Profile URL"
+                value={publishProfile.profile_url}
+                onChange={(e) => setPublishProfile((prev) => ({ ...prev, profile_url: e.target.value }))}
+                disabled={running}
+              />
+            </div>
           </div>
         </div>
 
