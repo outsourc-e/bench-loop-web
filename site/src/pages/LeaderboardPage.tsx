@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useLeaderboard, type PublicRun } from '../hooks/useLeaderboard'
 import {
   hasMeaningfulQuality,
@@ -197,6 +198,40 @@ export default function LeaderboardPage() {
               Reset filters
             </button>
           )}
+          <button
+            type="button"
+            className="btn btn-ghost lb-export-btn"
+            onClick={() => {
+              const csv = [
+                ['Rank', 'Model', 'Harness', 'Provider', 'Hardware', 'Overall', 'Quality', 'Speed', 'Reliability', 'Agent', 'Tok/s', 'TTFT', 'Remote', 'Submitted'].join(','),
+                ...ranked.map((r, i) => [
+                  i + 1,
+                  `"${r.model}"`,
+                  r.harness || 'raw',
+                  `"${providerLabel(r)}"`,
+                  `"${normalizedHardwareLabel(r)}"`,
+                  r.overall_score.toFixed(1),
+                  r.quality_score.toFixed(1),
+                  r.speed_score.toFixed(1),
+                  r.reliability_score.toFixed(1),
+                  r.agent_score != null ? r.agent_score.toFixed(1) : '',
+                  r.generation_tok_per_sec ? r.generation_tok_per_sec.toFixed(1) : '',
+                  r.ttft_ms ? r.ttft_ms.toFixed(0) : '',
+                  r.is_remote ? 'yes' : 'no',
+                  r.timestamp || '',
+                ].join(','))
+              ].join('\n')
+              const blob = new Blob([csv], { type: 'text/csv' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `benchloop-leaderboard-${new Date().toISOString().slice(0, 10)}.csv`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+          >
+            ⬇ Export CSV
+          </button>
         </div>
         <div className="lb-rank-modes">
           {RANK_MODES.map((m) => (
@@ -310,7 +345,9 @@ export default function LeaderboardPage() {
                     >
                       <td className="lb-rank">{rank}</td>
                       <td>
-                        <strong>{r.model}</strong>
+                        <Link to={`/model/${encodeURIComponent(r.model)}`} className="lb-model-link" onClick={(e) => e.stopPropagation()}>
+                          <strong>{r.model}</strong>
+                        </Link>
                         {name && (
                           <div className="publisher-inline-row">
                             {r.profile_avatar_url ? (

@@ -3,6 +3,7 @@ import LandingPage from './pages/LandingPage'
 import DocsPage from './pages/DocsPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import DownloadPage from './pages/DownloadPage'
+import ModelDetailPage from './pages/ModelDetailPage'
 import LoopLogo from './components/LoopLogo'
 import './App.css'
 
@@ -55,6 +56,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/model/:modelName" element={<ModelDetailPage />} />
           <Route path="/docs" element={<DocsPage />} />
           <Route path="/download" element={<DownloadPage />} />
         </Routes>
