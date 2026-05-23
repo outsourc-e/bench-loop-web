@@ -1029,6 +1029,41 @@
   border: 1px solid rgba(59, 130, 246, 0.25);
 }
 
+.lb-rank {
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+  width: 40px;
+}
+
+.lb-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 0 8px;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 8px;
+}
+
+.lb-page-info {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lb-page-count {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.lb-pagination button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Download */
 .download-grid {
   display: grid;
