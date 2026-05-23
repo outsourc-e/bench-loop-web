@@ -86,7 +86,14 @@ export default function LeaderboardPage() {
       if (mode === 'agent' && (r.agent_score ?? -1) < 0) return false
       if (scope === 'full' && !r.is_full_benchmark) return false
       if (harnessFilter !== 'all' && (r.harness || 'raw') !== harnessFilter) return false
-      if (hardwareFilter !== HARDWARE_FILTER_ALL && normalizedHardwareLabel(r) !== hardwareFilter) return false
+      if (hardwareFilter !== HARDWARE_FILTER_ALL) {
+        const hwLabel = normalizedHardwareLabel(r)
+        if (hardwareFilter.startsWith('Remote endpoints')) {
+          if (!hwLabel.startsWith('Remote hardware')) return false
+        } else if (hwLabel !== hardwareFilter) {
+          return false
+        }
+      }
       if (providerFilter !== PROVIDER_FILTER_ALL && providerLabel(r) !== providerFilter) return false
       if (publisherFilter !== PUBLISHER_FILTER_ALL && publisherLabel(r) !== publisherFilter) return false
       if (!hasMeaningfulQuality(r, qualityFloor)) return false
@@ -113,7 +120,21 @@ export default function LeaderboardPage() {
   const paginatedRuns = ranked.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const hardwareOptions = useMemo(() => {
-    return Array.from(new Set(runs.map((run) => normalizedHardwareLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+    const all = Array.from(new Set(runs.map((run) => normalizedHardwareLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
+    // Group remote hardware entries
+    const local: string[] = []
+    let remoteCount = 0
+    for (const hw of all) {
+      if (hw.startsWith('Remote hardware')) {
+        remoteCount++
+      } else {
+        local.push(hw)
+      }
+    }
+    if (remoteCount > 0) {
+      local.push(`Remote endpoints (${remoteCount})`)
+    }
+    return local
   }, [runs])
 
   const providerOptions = useMemo(() => {
@@ -185,6 +206,7 @@ export default function LeaderboardPage() {
               subtitle="For people who care whether the model can actually finish the task"
               run={stats.bestAgent}
               score={stats.bestAgent?.agent_score != null ? `${stats.bestAgent.agent_score.toFixed(1)} agent` : '—'}
+              emptyMessage="Waiting for agent suite runs — CLI agent tasks verify multi-turn tool use and task completion"
             />
           </div>
         </>
@@ -343,6 +365,46 @@ export default function LeaderboardPage() {
 
       {!loading && !error && ranked.length > 0 && (
         <>
+        {/* Comparison panel — sticky above table */}
+        {compareMode && compareRuns.length >= 2 && (
+          <div className="card lb-compare-panel lb-compare-sticky">
+            <div className="lb-compare-header">
+              <h3>Comparing {compareRuns.length} runs</h3>
+              <button
+                className="btn btn-ghost"
+                onClick={() => { setCompareIds(new Set()); setCompareMode(false) }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div className="lb-compare-table-wrap">
+              <table className="lb-compare-table">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    {compareRuns.map((r) => (
+                      <th key={r.id}>
+                        <div className="lb-compare-model">{r.model}</div>
+                        <div className="lb-compare-meta">{providerLabel(r)} · {machineLabel(r)}</div>
+                        <div className="lb-compare-meta">{r.harness || 'raw'} harness</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <CompareRow label="Overall" runs={compareRuns} get={(r) => r.overall_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Quality" runs={compareRuns} get={(r) => r.quality_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Speed" runs={compareRuns} get={(r) => r.speed_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Reliability" runs={compareRuns} get={(r) => r.reliability_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Agent" runs={compareRuns} get={(r) => r.agent_score ?? -1} fmt={(v) => v >= 0 ? v.toFixed(1) : '—'} />
+                  <CompareRow label="Tok/s" runs={compareRuns} get={(r) => r.generation_tok_per_sec ?? 0} fmt={(v) => v > 0 ? v.toFixed(1) : '—'} />
+                  <CompareRow label="TTFT" runs={compareRuns} get={(r) => r.ttft_ms ?? 0} fmt={(v) => v > 0 ? `${v.toFixed(0)}ms` : '—'} lower />
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         <div className="card lb-card">
           <table className="lb-table">
             <thead>
@@ -487,46 +549,6 @@ export default function LeaderboardPage() {
           </table>
         </div>
 
-        {/* Comparison panel */}
-        {compareMode && compareRuns.length >= 2 && (
-          <div className="card lb-compare-panel">
-            <div className="lb-compare-header">
-              <h3>Comparing {compareRuns.length} runs</h3>
-              <button
-                className="btn btn-ghost"
-                onClick={() => { setCompareIds(new Set()); setCompareMode(false) }}
-              >
-                ✕ Close
-              </button>
-            </div>
-            <div className="lb-compare-table-wrap">
-              <table className="lb-compare-table">
-                <thead>
-                  <tr>
-                    <th>Metric</th>
-                    {compareRuns.map((r) => (
-                      <th key={r.id}>
-                        <div className="lb-compare-model">{r.model}</div>
-                        <div className="lb-compare-meta">{providerLabel(r)} · {machineLabel(r)}</div>
-                        <div className="lb-compare-meta">{r.harness || 'raw'} harness</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <CompareRow label="Overall" runs={compareRuns} get={(r) => r.overall_score} fmt={(v) => v.toFixed(1)} />
-                  <CompareRow label="Quality" runs={compareRuns} get={(r) => r.quality_score} fmt={(v) => v.toFixed(1)} />
-                  <CompareRow label="Speed" runs={compareRuns} get={(r) => r.speed_score} fmt={(v) => v.toFixed(1)} />
-                  <CompareRow label="Reliability" runs={compareRuns} get={(r) => r.reliability_score} fmt={(v) => v.toFixed(1)} />
-                  <CompareRow label="Agent" runs={compareRuns} get={(r) => r.agent_score ?? -1} fmt={(v) => v >= 0 ? v.toFixed(1) : '—'} />
-                  <CompareRow label="Tok/s" runs={compareRuns} get={(r) => r.generation_tok_per_sec ?? 0} fmt={(v) => v > 0 ? v.toFixed(1) : '—'} />
-                  <CompareRow label="TTFT" runs={compareRuns} get={(r) => r.ttft_ms ?? 0} fmt={(v) => v > 0 ? `${v.toFixed(0)}ms` : '—'} lower />
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {/* Pagination controls */}
         {totalPages > 1 && (
           <div className="lb-pagination">
@@ -580,7 +602,7 @@ function Detail({ label, value, mono }: { label: string; value: string; mono?: b
   )
 }
 
-function HighlightCard({ title, subtitle, run, score }: { title: string; subtitle: string; run: PublicRun | null; score: string }) {
+function HighlightCard({ title, subtitle, run, score, emptyMessage }: { title: string; subtitle: string; run: PublicRun | null; score: string; emptyMessage?: string }) {
   return (
     <div className="card lb-highlight-card">
       <div className="metric-label">{title}</div>
@@ -592,7 +614,7 @@ function HighlightCard({ title, subtitle, run, score }: { title: string; subtitl
           <div className="lb-highlight-meta">{publisherLabel(run)} · {run.harness || 'raw'} harness</div>
         </>
       ) : (
-        <div className="lb-highlight-meta">No matching run yet</div>
+        <div className="lb-highlight-meta">{emptyMessage || 'No matching run yet'}</div>
       )}
       <p className="lb-highlight-subtitle">{subtitle}</p>
     </div>

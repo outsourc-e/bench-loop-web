@@ -914,7 +914,6 @@
 
 .lb-table {
   width: 100%;
-  min-width: 980px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.86rem;
@@ -922,7 +921,7 @@
 
 .lb-table th {
   text-align: left;
-  padding: 12px 14px;
+  padding: 10px 8px;
   color: var(--text-dim);
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -942,7 +941,7 @@
 }
 
 .lb-table td {
-  padding: 12px 14px;
+  padding: 10px 8px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
 
@@ -1266,8 +1265,15 @@
 }
 
 .lb-compare-panel {
-  margin-top: var(--s-6);
+  margin-bottom: var(--s-4);
   padding: var(--s-5);
+}
+
+.lb-compare-sticky {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
 
 .lb-compare-header {
@@ -2096,7 +2102,7 @@ input[type="search"]::placeholder {
 
 /* Table row heights — consistent and comfortable */
 .lb-table td {
-  padding: 14px 14px;
+  padding: 10px 8px;
   vertical-align: middle;
 }
 
@@ -2107,7 +2113,7 @@ input[type="search"]::placeholder {
 
 /* Model name cell — constrain width */
 .lb-table td:nth-child(2) {
-  max-width: 240px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2115,7 +2121,7 @@ input[type="search"]::placeholder {
 
 /* Hardware cell — allow wrap but constrain */
 .lb-table td:nth-child(5) {
-  max-width: 200px;
+  max-width: 160px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2126,7 +2132,7 @@ input[type="search"]::placeholder {
 .lb-table td:nth-child(n+6) {
   text-align: right;
   white-space: nowrap;
-  width: 80px;
+  width: 65px;
 }
 
 /* Expanded details row */

@@ -120,10 +120,10 @@ export default function LandingPage() {
             <div className="terminal-line muted">$ benchloop run --model</div>
             <div className="terminal-line model">{best?.model || 'qwen3:8b'}</div>
             <div className="terminal-grid">
-              <Metric label="Overall" value={best?.overall_score?.toFixed(1) || '72.9'} tone="green" />
-              <Metric label="Quality" value={best?.quality_score?.toFixed(1) || '73.6'} />
-              <Metric label="Speed" value={best?.speed_score?.toFixed(1) || '78.9'} />
-              <Metric label="Tok/s" value={best?.generation_tok_per_sec?.toFixed(1) || '74.6'} />
+              <Metric label="Overall" value={best?.overall_score?.toFixed(1) || '95.9'} tone="green" />
+              <Metric label="Quality" value={best?.quality_score?.toFixed(1) || '95.8'} />
+              <Metric label="Speed" value={best?.speed_score?.toFixed(1) || '98.0'} />
+              <Metric label="Tok/s" value={best?.generation_tok_per_sec?.toFixed(1) || '215.3'} />
             </div>
             <div className="terminal-progress"><span style={{ width: '83%' }} /></div>
             <div className="terminal-foot">

@@ -86,7 +86,9 @@ benchloop --version  # 0.1.1`}</pre>
               and your browser opens automatically.
             </p>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
-              The dashboard auto-discovers models on <code>localhost:11434</code> (Ollama),
+              <strong>Prerequisite:</strong> have at least one model endpoint running before launching the dashboard.
+              For Ollama: <code>ollama serve</code> with at least one model pulled (<code>ollama pull qwen3:8b</code>).
+              For LM Studio: open the app and enable the local server. The dashboard auto-discovers models on <code>localhost:11434</code> (Ollama),
               <code>localhost:1234</code> (LM Studio), <code>localhost:8000</code> (MLX/Osaurus / vLLM), and any other endpoints you add.
             </p>
             <h3>Development mode (hot-reload)</h3>
@@ -128,6 +130,26 @@ ollama pull qwen3:1.7b`}</pre>
             <p>
               For OpenAI-compatible endpoints (LM Studio, MLX, vLLM, etc.), pass{' '}
               <code>--provider openai_compat</code>.
+            </p>
+
+            <h3>Benchmarking cloud / remote models</h3>
+            <p>
+              Use <code>--remote</code> to benchmark models hosted on cloud APIs (DashScope, OpenAI, Together, etc.).
+              This flags the run as remote so the leaderboard applies cloud-aware speed scoring instead of local tok/s:
+            </p>
+            <pre>{`benchloop run \\
+  --model qwen3.7-max \\
+  --endpoint https://dashscope-intl.aliyuncs.com/compatible-mode \\
+  --provider openai_compat \\
+  --api-key "$DASHSCOPE_API_KEY" \\
+  --remote`}</pre>
+            <p>
+              <code>--api-key</code> passes the API key to the endpoint. Also reads <code>OPENAI_API_KEY</code> from env.
+              Required for vLLM, sglang, and most cloud providers.
+            </p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              Remote runs measure TTFT (time to first token) and effective tok/s via streaming. Reasoning tokens are excluded
+              from throughput so thinking time doesn't inflate speed scores.
             </p>
           </section>
 
@@ -191,6 +213,23 @@ benchloop run --model qwen3:8b --harness pi
               <li><strong>Reliability</strong> = pass rate across all tasks.</li>
               <li><strong>Agent</strong> = 25 points each for <code>correct_final</code>, <code>efficient</code> (under max turns), <code>no_hallucinated_tools</code>, and <code>all_required_called</code>. Averaged across tasks.</li>
             </ul>
+
+            <h3>Cloud speed scoring (remote runs)</h3>
+            <p>
+              When a run is flagged <code>--remote</code>, local tok/s isn't comparable to local hardware.
+              Instead, the speed score is computed from streaming metrics:
+            </p>
+            <pre>{`cloud_speed = 60% · ttft_score + 40% · effective_tps_score`}</pre>
+            <ul>
+              <li><strong>TTFT</strong> (time to first token) — measured via streaming to the first token the user sees.</li>
+              <li><strong>Effective tok/s</strong> — visible output throughput, excluding reasoning/thinking tokens.</li>
+            </ul>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>
+              When cloud speed data is available, the overall formula adjusts to
+              <code style={{ marginLeft: 4 }}>0.50 · quality + 0.25 · speed + 0.25 · reliability</code>.
+              When speed data is unavailable (no streaming), it falls back to
+              <code style={{ marginLeft: 4 }}>0.65 · quality + 0.35 · reliability</code>.
+            </p>
           </section>
 
           <section id="publish">
