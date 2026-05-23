@@ -59,6 +59,20 @@ export default function LeaderboardPage() {
   const [remoteFilter, setRemoteFilter] = useState<'all' | 'local' | 'remote'>('all')
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [compareMode, setCompareMode] = useState(false)
+  const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
+
+  const toggleCompare = (id: string) => {
+    setCompareIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else if (next.size < 4) {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   const ranked = useMemo(() => {
     const filtered = runs.filter((r) => {
@@ -85,6 +99,11 @@ export default function LeaderboardPage() {
     })
     return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))
   }, [runs, mode, search, scope, harnessFilter, hardwareFilter, providerFilter, publisherFilter, qualityFloor, remoteFilter])
+
+  const compareRuns = useMemo(
+    () => ranked.filter((r) => compareIds.has(r.id)),
+    [ranked, compareIds]
+  )
 
   // Reset to page 1 when filters change
   const filterKey = `${mode}|${search}|${scope}|${harnessFilter}|${hardwareFilter}|${providerFilter}|${publisherFilter}|${qualityFloor}|${remoteFilter}`
@@ -198,6 +217,17 @@ export default function LeaderboardPage() {
               Reset filters
             </button>
           )}
+          <button
+            type="button"
+            className={`btn btn-ghost lb-export-btn ${compareMode ? 'lb-compare-active' : ''}`}
+            onClick={() => {
+              setCompareMode(!compareMode)
+              if (compareMode) setCompareIds(new Set())
+            }}
+            title={compareMode ? 'Exit compare mode' : 'Compare runs side by side'}
+          >
+            {compareMode ? `✓ Compare (${compareIds.size})` : '⚖ Compare'}
+          </button>
           <button
             type="button"
             className="btn btn-ghost lb-export-btn"
@@ -317,6 +347,7 @@ export default function LeaderboardPage() {
           <table className="lb-table">
             <thead>
               <tr>
+                {compareMode && <th style={{ width: 36 }}></th>}
                 <th>#</th>
                 <th>Model</th>
                 <th>Harness</th>
@@ -340,10 +371,21 @@ export default function LeaderboardPage() {
                 return (
                   <Fragment key={r.id}>
                     <tr
-                      className="lb-row-clickable"
-                      onClick={() => setExpandedId(expanded ? null : r.id)}
-                      title="Click for run details"
+                      className={`lb-row-clickable ${compareIds.has(r.id) ? 'lb-row-selected' : ''}`}
+                      onClick={() => compareMode ? toggleCompare(r.id) : setExpandedId(expanded ? null : r.id)}
+                      title={compareMode ? 'Click to select for comparison' : 'Click for run details'}
                     >
+                      {compareMode && (
+                        <td className="lb-compare-cell">
+                          <input
+                            type="checkbox"
+                            checked={compareIds.has(r.id)}
+                            onChange={() => toggleCompare(r.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={compareIds.size >= 4 && !compareIds.has(r.id)}
+                          />
+                        </td>
+                      )}
                       <td className="lb-rank">{rank}</td>
                       <td>
                         <Link to={`/model/${encodeURIComponent(r.model)}`} className="lb-model-link" onClick={(e) => e.stopPropagation()}>
@@ -407,7 +449,7 @@ export default function LeaderboardPage() {
                     </tr>
                     {expanded && (
                       <tr className="lb-details-row">
-                        <td colSpan={13}>
+                        <td colSpan={compareMode ? 14 : 13}>
                           <div className="lb-details-grid">
                             <Detail label="Run ID" value={r.run_id || r.id} mono />
                             <Detail label="Published by" value={publisherLabel(r)} />
@@ -424,6 +466,15 @@ export default function LeaderboardPage() {
                             <Detail label="GPU/VRAM" value={r.gpu ? `${r.gpu}${r.gpu_memory_gb ? ` / ${r.gpu_memory_gb.toFixed(1)}GB` : ''}` : r.gpu_memory_gb ? `${r.gpu_memory_gb.toFixed(1)}GB VRAM observed in use` : 'not reported'} />
                             <Detail label="Runtime" value={r.total_runtime_sec ? `${r.total_runtime_sec.toFixed(1)}s` : '—'} />
                             <Detail label="Suites" value={suiteSummary(r)} />
+                            {r.is_remote && r.ttft_ms && (
+                              <Detail label="Time to First Token" value={`${r.ttft_ms.toFixed(0)}ms`} />
+                            )}
+                            {r.is_remote && r.generation_tok_per_sec && (
+                              <Detail label="Effective Tok/s" value={`${r.generation_tok_per_sec.toFixed(1)} tok/s (excluding reasoning)`} />
+                            )}
+                            {r.is_remote && r.speed_score > 0 && (
+                              <Detail label="Cloud Speed Formula" value="60% TTFT + 40% effective tok/s" />
+                            )}
                             <Detail label="Submitted" value={r.submitted_at || r.timestamp || '—'} mono />
                           </div>
                         </td>
@@ -435,6 +486,46 @@ export default function LeaderboardPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Comparison panel */}
+        {compareMode && compareRuns.length >= 2 && (
+          <div className="card lb-compare-panel">
+            <div className="lb-compare-header">
+              <h3>Comparing {compareRuns.length} runs</h3>
+              <button
+                className="btn btn-ghost"
+                onClick={() => { setCompareIds(new Set()); setCompareMode(false) }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <div className="lb-compare-table-wrap">
+              <table className="lb-compare-table">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    {compareRuns.map((r) => (
+                      <th key={r.id}>
+                        <div className="lb-compare-model">{r.model}</div>
+                        <div className="lb-compare-meta">{providerLabel(r)} · {machineLabel(r)}</div>
+                        <div className="lb-compare-meta">{r.harness || 'raw'} harness</div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <CompareRow label="Overall" runs={compareRuns} get={(r) => r.overall_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Quality" runs={compareRuns} get={(r) => r.quality_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Speed" runs={compareRuns} get={(r) => r.speed_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Reliability" runs={compareRuns} get={(r) => r.reliability_score} fmt={(v) => v.toFixed(1)} />
+                  <CompareRow label="Agent" runs={compareRuns} get={(r) => r.agent_score ?? -1} fmt={(v) => v >= 0 ? v.toFixed(1) : '—'} />
+                  <CompareRow label="Tok/s" runs={compareRuns} get={(r) => r.generation_tok_per_sec ?? 0} fmt={(v) => v > 0 ? v.toFixed(1) : '—'} />
+                  <CompareRow label="TTFT" runs={compareRuns} get={(r) => r.ttft_ms ?? 0} fmt={(v) => v > 0 ? `${v.toFixed(0)}ms` : '—'} lower />
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Pagination controls */}
         {totalPages > 1 && (
@@ -505,5 +596,40 @@ function HighlightCard({ title, subtitle, run, score }: { title: string; subtitl
       )}
       <p className="lb-highlight-subtitle">{subtitle}</p>
     </div>
+  )
+}
+
+function CompareRow({
+  label,
+  runs,
+  get,
+  fmt,
+  lower = false,
+}: {
+  label: string
+  runs: PublicRun[]
+  get: (r: PublicRun) => number
+  fmt: (v: number) => string
+  lower?: boolean
+}) {
+  const values = runs.map(get).filter((v) => v > 0 || v >= 0)
+  const best = lower
+    ? Math.min(...values.filter((v) => v > 0))
+    : Math.max(...values)
+  const isUsable = (v: number) => (lower ? v > 0 : v > 0 || (v === 0 && !lower))
+
+  return (
+    <tr>
+      <td className="lb-compare-label">{label}</td>
+      {runs.map((r) => {
+        const v = get(r)
+        const isBest = isUsable(v) && v === best
+        return (
+          <td key={r.id} className={isBest ? 'lb-compare-best' : ''}>
+            {fmt(v)}
+          </td>
+        )
+      })}
+    </tr>
   )
 }

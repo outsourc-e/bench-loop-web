@@ -1241,6 +1241,102 @@
   cursor: pointer;
 }
 
+/* Compare mode */
+.lb-compare-active {
+  color: var(--accent) !important;
+  border-color: rgba(45, 212, 127, 0.3) !important;
+  background: rgba(45, 212, 127, 0.06) !important;
+}
+
+.lb-compare-cell {
+  width: 36px;
+  text-align: center;
+  padding: 8px !important;
+}
+
+.lb-compare-cell input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.lb-row-selected {
+  background: rgba(45, 212, 127, 0.05) !important;
+}
+
+.lb-compare-panel {
+  margin-top: var(--s-6);
+  padding: var(--s-5);
+}
+
+.lb-compare-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--s-4);
+}
+
+.lb-compare-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.lb-compare-table-wrap {
+  overflow-x: auto;
+}
+
+.lb-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.lb-compare-table th,
+.lb-compare-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.lb-compare-table th {
+  background: rgba(255,255,255,0.03);
+  font-weight: 700;
+  vertical-align: top;
+}
+
+.lb-compare-model {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.lb-compare-meta {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+.lb-compare-label {
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  width: 100px;
+}
+
+.lb-compare-best {
+  color: var(--accent);
+  font-weight: 800;
+}
+
 /* Download */
 .download-grid {
   display: grid;

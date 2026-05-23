@@ -165,9 +165,10 @@ export default function LandingPage() {
           />
           <FeaturedRunCard
             title="Best agent loop"
-            blurb="Because some models ace the benchmark and still faceplant on real tasks."
+            blurb="Multi-turn agent tasks — models must actually execute tools and complete the job, not just generate plausible text."
             run={bestAgent}
             stat={bestAgent?.agent_score != null ? `${bestAgent.agent_score.toFixed(1)} agent` : '—'}
+            emptyMessage="Waiting for agent suite runs. The CLI agent tasks verify multi-turn tool use and task completion."
           />
         </div>
       </section>
@@ -347,7 +348,7 @@ function Stat({ label, value, compact }: { label: string; value: string; compact
   )
 }
 
-function FeaturedRunCard({ title, blurb, run, stat }: { title: string; blurb: string; run: PublicRun | null; stat: string }) {
+function FeaturedRunCard({ title, blurb, run, stat, emptyMessage }: { title: string; blurb: string; run: PublicRun | null; stat: string; emptyMessage?: string }) {
   return (
     <div className="card lb-highlight-card">
       <div className="metric-label">{title}</div>
@@ -359,7 +360,7 @@ function FeaturedRunCard({ title, blurb, run, stat }: { title: string; blurb: st
           <div className="lb-highlight-meta">{publisherLabel(run)} · {run.harness || 'raw'} harness</div>
         </>
       ) : (
-        <div className="lb-highlight-meta">No matching run yet</div>
+        <div className="lb-highlight-meta">{emptyMessage || 'No matching run yet'}</div>
       )}
       <p className="lb-highlight-subtitle">{blurb}</p>
     </div>
