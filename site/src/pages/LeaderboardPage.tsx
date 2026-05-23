@@ -213,143 +213,175 @@ export default function LeaderboardPage() {
       )}
 
       <div className="card lb-filters">
-        <div className="lb-filters-header">
-          <div>
-            <div className="page-kicker lb-kicker">Quality-aware ranking</div>
-            <div className="lb-filter-summary">
+        {/* Row 1: Search + Sort modes */}
+        <div className="lb-filters-top">
+          <div className="lb-search-wrap">
+            <span className="lb-search-icon">⌕</span>
+            <input
+              type="search"
+              placeholder="Search models, providers, hardware, publishers…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="lb-search"
+            />
+          </div>
+          <div className="lb-rank-modes">
+            {RANK_MODES.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`lb-sort-btn ${mode === m.id ? 'lb-sort-active' : ''}`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 2: Filter dropdowns */}
+        <div className="lb-filter-grid">
+          <label className="lb-filter-field">
+            <span className="lb-filter-label">Harness</span>
+            <select value={harnessFilter} onChange={(e) => setHarnessFilter(e.target.value as HarnessFilter)}>
+              {HARNESSES.map((h) => (
+                <option key={h} value={h}>{h === 'all' ? 'All harnesses' : `${h} harness`}</option>
+              ))}
+            </select>
+          </label>
+          <label className="lb-filter-field">
+            <span className="lb-filter-label">Provider</span>
+            <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}>
+              <option value={PROVIDER_FILTER_ALL}>All providers</option>
+              {providerOptions.map((provider) => (
+                <option key={provider} value={provider}>{provider}</option>
+              ))}
+            </select>
+          </label>
+          <label className="lb-filter-field">
+            <span className="lb-filter-label">Hardware</span>
+            <select value={hardwareFilter} onChange={(e) => setHardwareFilter(e.target.value)}>
+              <option value={HARDWARE_FILTER_ALL}>All hardware</option>
+              {hardwareOptions.map((hardware) => (
+                <option key={hardware} value={hardware}>{hardware}</option>
+              ))}
+            </select>
+          </label>
+          <label className="lb-filter-field">
+            <span className="lb-filter-label">Publisher</span>
+            <select value={publisherFilter} onChange={(e) => setPublisherFilter(e.target.value)}>
+              <option value={PUBLISHER_FILTER_ALL}>All publishers</option>
+              {publisherOptions.map((publisher) => (
+                <option key={publisher} value={publisher}>{publisher}</option>
+              ))}
+            </select>
+          </label>
+          <label className="lb-filter-field">
+            <span className="lb-filter-label">Quality floor</span>
+            <select value={String(qualityFloor)} onChange={(e) => setQualityFloor(Number(e.target.value))}>
+              {QUALITY_FLOORS.map((value) => (
+                <option key={value} value={value}>{qualityFloorLabel(value)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="lb-filter-field">
+            <span className="lb-filter-label">Scope</span>
+            <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')}>
+              <option value="full">Full benchmarks only</option>
+              <option value="all">All scopes</option>
+            </select>
+          </label>
+          <label className="lb-filter-field">
+            <span className="lb-filter-label">Run type</span>
+            <select value={remoteFilter} onChange={(e) => setRemoteFilter(e.target.value as 'all' | 'local' | 'remote')}>
+              <option value="all">All runs</option>
+              <option value="local">Local only</option>
+              <option value="remote">Remote only</option>
+            </select>
+          </label>
+        </div>
+
+        {/* Row 3: Summary + active chips + actions */}
+        <div className="lb-filters-footer">
+          <div className="lb-filters-info">
+            <span className="page-kicker lb-kicker">Quality-aware ranking</span>
+            <span className="lb-filter-summary">
               Showing <strong>{filteredCount}</strong> of <strong>{totalCount}</strong> published runs
-            </div>
+            </span>
           </div>
           {activeFilterChips.length > 0 && (
+            <div className="lb-active-filters" aria-label="Active filters">
+              {activeFilterChips.map((chip) => (
+                <span key={chip} className="lb-filter-chip">{chip}</span>
+              ))}
+            </div>
+          )}
+          <div className="lb-filters-actions">
+            {activeFilterChips.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-ghost lb-reset-btn"
+                onClick={() => {
+                  setMode('overall')
+                  setSearch('')
+                  setScope('all')
+                  setHarnessFilter('all')
+                  setHardwareFilter(HARDWARE_FILTER_ALL)
+                  setProviderFilter(PROVIDER_FILTER_ALL)
+                  setPublisherFilter(PUBLISHER_FILTER_ALL)
+                  setQualityFloor(60)
+                  setRemoteFilter('all')
+                }}
+              >
+                ✕ Reset
+              </button>
+            )}
             <button
               type="button"
-              className="btn btn-ghost lb-reset-btn"
+              className={`btn lb-compare-btn ${compareMode ? 'lb-compare-active' : 'btn-secondary'}`}
               onClick={() => {
-                setMode('overall')
-                setSearch('')
-                setScope('all')
-                setHarnessFilter('all')
-                setHardwareFilter(HARDWARE_FILTER_ALL)
-                setProviderFilter(PROVIDER_FILTER_ALL)
-                setPublisherFilter(PUBLISHER_FILTER_ALL)
-                setQualityFloor(60)
-                setRemoteFilter('all')
+                setCompareMode(!compareMode)
+                if (compareMode) setCompareIds(new Set())
+              }}
+              title={compareMode ? 'Exit compare mode' : 'Compare runs side by side'}
+            >
+              ⚖ {compareMode ? `Compare (${compareIds.size})` : 'Compare'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary lb-export-btn"
+              onClick={() => {
+                const csv = [
+                  ['Rank', 'Model', 'Harness', 'Provider', 'Hardware', 'Overall', 'Quality', 'Speed', 'Reliability', 'Agent', 'Tok/s', 'TTFT', 'Remote', 'Submitted'].join(','),
+                  ...ranked.map((r, i) => [
+                    i + 1,
+                    `"${r.model}"`,
+                    r.harness || 'raw',
+                    `"${providerLabel(r)}"`,
+                    `"${normalizedHardwareLabel(r)}"`,
+                    r.overall_score.toFixed(1),
+                    r.quality_score.toFixed(1),
+                    r.speed_score.toFixed(1),
+                    r.reliability_score.toFixed(1),
+                    r.agent_score != null ? r.agent_score.toFixed(1) : '',
+                    r.generation_tok_per_sec ? r.generation_tok_per_sec.toFixed(1) : '',
+                    r.ttft_ms ? r.ttft_ms.toFixed(0) : '',
+                    r.is_remote ? 'yes' : 'no',
+                    r.timestamp || '',
+                  ].join(','))
+                ].join('\n')
+                const blob = new Blob([csv], { type: 'text/csv' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `benchloop-leaderboard-${new Date().toISOString().slice(0, 10)}.csv`
+                a.click()
+                URL.revokeObjectURL(url)
               }}
             >
-              Reset filters
+              ⬇ Export CSV
             </button>
-          )}
-          <button
-            type="button"
-            className={`btn btn-ghost lb-export-btn ${compareMode ? 'lb-compare-active' : ''}`}
-            onClick={() => {
-              setCompareMode(!compareMode)
-              if (compareMode) setCompareIds(new Set())
-            }}
-            title={compareMode ? 'Exit compare mode' : 'Compare runs side by side'}
-          >
-            {compareMode ? `✓ Compare (${compareIds.size})` : '⚖ Compare'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost lb-export-btn"
-            onClick={() => {
-              const csv = [
-                ['Rank', 'Model', 'Harness', 'Provider', 'Hardware', 'Overall', 'Quality', 'Speed', 'Reliability', 'Agent', 'Tok/s', 'TTFT', 'Remote', 'Submitted'].join(','),
-                ...ranked.map((r, i) => [
-                  i + 1,
-                  `"${r.model}"`,
-                  r.harness || 'raw',
-                  `"${providerLabel(r)}"`,
-                  `"${normalizedHardwareLabel(r)}"`,
-                  r.overall_score.toFixed(1),
-                  r.quality_score.toFixed(1),
-                  r.speed_score.toFixed(1),
-                  r.reliability_score.toFixed(1),
-                  r.agent_score != null ? r.agent_score.toFixed(1) : '',
-                  r.generation_tok_per_sec ? r.generation_tok_per_sec.toFixed(1) : '',
-                  r.ttft_ms ? r.ttft_ms.toFixed(0) : '',
-                  r.is_remote ? 'yes' : 'no',
-                  r.timestamp || '',
-                ].join(','))
-              ].join('\n')
-              const blob = new Blob([csv], { type: 'text/csv' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url
-              a.download = `benchloop-leaderboard-${new Date().toISOString().slice(0, 10)}.csv`
-              a.click()
-              URL.revokeObjectURL(url)
-            }}
-          >
-            ⬇ Export CSV
-          </button>
-        </div>
-        <div className="lb-rank-modes">
-          {RANK_MODES.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => setMode(m.id)}
-              className={`btn ${mode === m.id ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '7px 13px', fontSize: '0.78rem' }}
-            >
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <div className="lb-filter-controls">
-          <input
-            type="search"
-            placeholder="Search model, provider, hardware, publisher…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="lb-search"
-          />
-          <select value={harnessFilter} onChange={(e) => setHarnessFilter(e.target.value as HarnessFilter)}>
-            {HARNESSES.map((h) => (
-              <option key={h} value={h}>{h === 'all' ? 'All harnesses' : `${h} harness`}</option>
-            ))}
-          </select>
-          <select value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}>
-            <option value={PROVIDER_FILTER_ALL}>All providers</option>
-            {providerOptions.map((provider) => (
-              <option key={provider} value={provider}>{provider}</option>
-            ))}
-          </select>
-          <select value={hardwareFilter} onChange={(e) => setHardwareFilter(e.target.value)}>
-            <option value={HARDWARE_FILTER_ALL}>All hardware</option>
-            {hardwareOptions.map((hardware) => (
-              <option key={hardware} value={hardware}>{hardware}</option>
-            ))}
-          </select>
-          <select value={publisherFilter} onChange={(e) => setPublisherFilter(e.target.value)}>
-            <option value={PUBLISHER_FILTER_ALL}>All publishers</option>
-            {publisherOptions.map((publisher) => (
-              <option key={publisher} value={publisher}>{publisher}</option>
-            ))}
-          </select>
-          <select value={String(qualityFloor)} onChange={(e) => setQualityFloor(Number(e.target.value))}>
-            {QUALITY_FLOORS.map((value) => (
-              <option key={value} value={value}>{qualityFloorLabel(value)}</option>
-            ))}
-          </select>
-          <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')}>
-            <option value="full">Full benchmarks only</option>
-            <option value="all">All scopes</option>
-          </select>
-          <select value={remoteFilter} onChange={(e) => setRemoteFilter(e.target.value as 'all' | 'local' | 'remote')}>
-            <option value="all">All runs</option>
-            <option value="local">Local only</option>
-            <option value="remote">Remote only</option>
-          </select>
-        </div>
-        {activeFilterChips.length > 0 && (
-          <div className="lb-active-filters" aria-label="Active filters">
-            {activeFilterChips.map((chip) => (
-              <span key={chip} className="lb-filter-chip">{chip}</span>
-            ))}
           </div>
-        )}
+        </div>
       </div>
 
       {loading && <div className="card">Loading public runs…</div>}
