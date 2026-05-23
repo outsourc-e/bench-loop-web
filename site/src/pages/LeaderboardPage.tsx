@@ -54,6 +54,7 @@ export default function LeaderboardPage() {
   const [providerFilter, setProviderFilter] = useState(PROVIDER_FILTER_ALL)
   const [publisherFilter, setPublisherFilter] = useState(PUBLISHER_FILTER_ALL)
   const [qualityFloor, setQualityFloor] = useState<number>(60)
+  const [remoteFilter, setRemoteFilter] = useState<'all' | 'local' | 'remote'>('all')
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const ranked = useMemo(() => {
@@ -72,10 +73,15 @@ export default function LeaderboardPage() {
       if (providerFilter !== PROVIDER_FILTER_ALL && providerLabel(r) !== providerFilter) return false
       if (publisherFilter !== PUBLISHER_FILTER_ALL && publisherLabel(r) !== publisherFilter) return false
       if (!hasMeaningfulQuality(r, qualityFloor)) return false
+      if (remoteFilter !== 'all') {
+        const isRemote = r.is_remote === true
+        if (remoteFilter === 'remote' && !isRemote) return false
+        if (remoteFilter === 'local' && isRemote) return false
+      }
       return true
     })
     return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))
-  }, [runs, mode, search, scope, harnessFilter, hardwareFilter, providerFilter, publisherFilter, qualityFloor])
+  }, [runs, mode, search, scope, harnessFilter, hardwareFilter, providerFilter, publisherFilter, qualityFloor, remoteFilter])
 
   const hardwareOptions = useMemo(() => {
     return Array.from(new Set(runs.map((run) => normalizedHardwareLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
@@ -108,9 +114,10 @@ export default function LeaderboardPage() {
     if (hardwareFilter !== HARDWARE_FILTER_ALL) chips.push(hardwareFilter)
     if (publisherFilter !== PUBLISHER_FILTER_ALL) chips.push(publisherFilter)
     if (qualityFloor > 0) chips.push(qualityFloorLabel(qualityFloor))
+    if (remoteFilter !== 'all') chips.push(remoteFilter === 'local' ? 'local runs' : 'remote runs')
     if (search.trim()) chips.push(`search: ${search.trim()}`)
     return chips
-  }, [scope, harnessFilter, providerFilter, hardwareFilter, publisherFilter, qualityFloor, search])
+  }, [scope, harnessFilter, providerFilter, hardwareFilter, publisherFilter, qualityFloor, remoteFilter, search])
 
   const filteredCount = ranked.length
   const totalCount = runs.length
@@ -175,6 +182,7 @@ export default function LeaderboardPage() {
                 setProviderFilter(PROVIDER_FILTER_ALL)
                 setPublisherFilter(PUBLISHER_FILTER_ALL)
                 setQualityFloor(60)
+                setRemoteFilter('all')
               }}
             >
               Reset filters
@@ -232,6 +240,11 @@ export default function LeaderboardPage() {
           <select value={scope} onChange={(e) => setScope(e.target.value as 'full' | 'all')}>
             <option value="full">Full benchmarks only</option>
             <option value="all">All scopes</option>
+          </select>
+          <select value={remoteFilter} onChange={(e) => setRemoteFilter(e.target.value as 'all' | 'local' | 'remote')}>
+            <option value="all">All runs</option>
+            <option value="local">Local only</option>
+            <option value="remote">Remote only</option>
           </select>
         </div>
         {activeFilterChips.length > 0 && (
@@ -317,6 +330,7 @@ export default function LeaderboardPage() {
                         )}
                         {r.is_full_benchmark ? <span className="lb-badge full">FULL</span> : <span className="lb-badge partial">PARTIAL</span>}
                         {r.is_agent_only && <span className="lb-badge agent">AGENT</span>}
+                        {r.is_remote && <span className="lb-badge remote">☁ REMOTE</span>}
                       </td>
                       <td><code>{r.harness || 'raw'}</code></td>
                       <td>{providerLabel(r)}</td>
