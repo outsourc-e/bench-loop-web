@@ -312,6 +312,7 @@ export default function LeaderboardPage() {
       )}
 
       {!loading && !error && ranked.length > 0 && (
+        <>
         <div className="card lb-card">
           <table className="lb-table">
             <thead>
@@ -448,7 +449,7 @@ export default function LeaderboardPage() {
             <div className="lb-page-info">
               Page {page} of {totalPages}
               <span className="lb-page-count">
-                ({((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, ranked.length)} of {ranked.length})
+                ({((page - 1) * PAGE_SIZE) + 1}-{Math.min(page * PAGE_SIZE, ranked.length)} of {ranked.length})
               </span>
             </div>
             <button
@@ -460,6 +461,7 @@ export default function LeaderboardPage() {
             </button>
           </div>
         )}
+        </>
       )}
 
       <p style={{ marginTop: 24, color: 'var(--text-dim)', fontSize: '0.8rem' }}>

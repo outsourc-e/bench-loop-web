@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import { useMemo } from 'react'
-import { useLeaderboard, type PublicRun } from '../hooks/useLeaderboard'
+import { useLeaderboard } from '../hooks/useLeaderboard'
 
 function scoreClass(score: number): string {
   return score >= 80 ? 'green' : score >= 60 ? 'yellow' : 'red'
@@ -138,7 +138,7 @@ export default function ModelDetailPage() {
                     {run.ttft_ms ? `${run.ttft_ms.toFixed(0)}ms` : '—'}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    {new Date(run.timestamp).toLocaleDateString()}
+                    {run.timestamp ? new Date(run.timestamp).toLocaleDateString() : '—'}
                   </td>
                 </tr>
               ))}
