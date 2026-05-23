@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useLeaderboard, type PublicRun } from '../hooks/useLeaderboard'
 import {
   hasMeaningfulQuality,
@@ -26,6 +26,7 @@ const HARDWARE_FILTER_ALL = 'all'
 const PROVIDER_FILTER_ALL = 'all'
 const PUBLISHER_FILTER_ALL = 'all'
 const QUALITY_FLOORS = [0, 40, 60, 75] as const
+const PAGE_SIZE = 50
 
 type HarnessFilter = typeof HARNESSES[number]
 
@@ -55,6 +56,7 @@ export default function LeaderboardPage() {
   const [publisherFilter, setPublisherFilter] = useState(PUBLISHER_FILTER_ALL)
   const [qualityFloor, setQualityFloor] = useState<number>(60)
   const [remoteFilter, setRemoteFilter] = useState<'all' | 'local' | 'remote'>('all')
+  const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
   const ranked = useMemo(() => {
@@ -82,6 +84,13 @@ export default function LeaderboardPage() {
     })
     return filtered.slice().sort((a, b) => scoreOf(b, mode) - scoreOf(a, mode))
   }, [runs, mode, search, scope, harnessFilter, hardwareFilter, providerFilter, publisherFilter, qualityFloor, remoteFilter])
+
+  // Reset to page 1 when filters change
+  const filterKey = `${mode}|${search}|${scope}|${harnessFilter}|${hardwareFilter}|${providerFilter}|${publisherFilter}|${qualityFloor}|${remoteFilter}`
+  useEffect(() => setPage(1), [filterKey])
+
+  const totalPages = Math.ceil(ranked.length / PAGE_SIZE)
+  const paginatedRuns = ranked.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const hardwareOptions = useMemo(() => {
     return Array.from(new Set(runs.map((run) => normalizedHardwareLabel(run)).filter(Boolean))).sort((a, b) => a.localeCompare(b))
@@ -288,7 +297,8 @@ export default function LeaderboardPage() {
               </tr>
             </thead>
             <tbody>
-              {ranked.map((r, i) => {
+              {paginatedRuns.map((r, i) => {
+                const rank = (page - 1) * PAGE_SIZE + i + 1
                 const expanded = expandedId === r.id
                 const name = publisherName(r)
                 return (
@@ -298,7 +308,7 @@ export default function LeaderboardPage() {
                       onClick={() => setExpandedId(expanded ? null : r.id)}
                       title="Click for run details"
                     >
-                      <td className="lb-score">{i + 1}</td>
+                      <td className="lb-rank">{rank}</td>
                       <td>
                         <strong>{r.model}</strong>
                         {name && (
@@ -384,6 +394,32 @@ export default function LeaderboardPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="lb-pagination">
+            <button
+              className="btn btn-ghost"
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+            >
+              ← Previous
+            </button>
+            <div className="lb-page-info">
+              Page {page} of {totalPages}
+              <span className="lb-page-count">
+                ({((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, ranked.length)} of {ranked.length})
+              </span>
+            </div>
+            <button
+              className="btn btn-ghost"
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+            >
+              Next →
+            </button>
+          </div>
+        )}
       )}
 
       <p style={{ marginTop: 24, color: 'var(--text-dim)', fontSize: '0.8rem' }}>
