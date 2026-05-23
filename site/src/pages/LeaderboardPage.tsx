@@ -349,7 +349,10 @@ export default function LeaderboardPage() {
                       </td>
                       <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.overall_score)}`}>{r.overall_score.toFixed(1)}</span></td>
                       <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.quality_score)}`}>{r.quality_score.toFixed(1)}</span></td>
-                      <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.speed_score)}`}>{r.speed_score.toFixed(1)}</span></td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className={`lb-score ${scoreClass(r.speed_score)}`}>{r.speed_score.toFixed(1)}</span>
+                        {r.is_remote && r.speed_score > 0 && <span className="lb-speed-cloud" title="Cloud speed score (TTFT + effective tok/s)">☁</span>}
+                      </td>
                       <td style={{ textAlign: 'right' }}><span className={`lb-score ${scoreClass(r.reliability_score)}`}>{r.reliability_score.toFixed(1)}</span></td>
                       <td style={{ textAlign: 'right' }}>
                         {r.agent_score != null && r.agent_score >= 0

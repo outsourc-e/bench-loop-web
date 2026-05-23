@@ -1064,6 +1064,13 @@
   cursor: not-allowed;
 }
 
+.lb-speed-cloud {
+  margin-left: 4px;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  cursor: help;
+}
+
 /* Download */
 .download-grid {
   display: grid;
