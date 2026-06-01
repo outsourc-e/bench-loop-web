@@ -422,6 +422,17 @@ export async function getRunDetail(runId: string) {
   return resp.json()
 }
 
+export async function deleteRun(runId: string): Promise<{ ok: boolean; run_id?: string; detail?: string }> {
+  const resp = await fetch(`/api/benchmark/runs/${encodeURIComponent(runId)}`, {
+    method: 'DELETE',
+  })
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok) {
+    throw new Error(data.detail || data.error || `delete failed: ${resp.status}`)
+  }
+  return data
+}
+
 export async function getHFModelDetails(repo: string): Promise<HFModelDetails> {
   const resp = await fetch(`/api/models/hf-details?repo=${encodeURIComponent(repo)}`)
   return resp.json()

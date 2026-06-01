@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import ScoreBadge from '../components/ScoreBadge'
+import { deleteRun } from '../hooks/useApi'
 
 interface RunDetail {
   status?: string
@@ -27,6 +28,8 @@ export default function RunDetailPage() {
   const navigate = useNavigate()
   const [data, setData] = useState<RunDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!runId) return
@@ -107,6 +110,23 @@ export default function RunDetailPage() {
   const sm = run.speed_metrics || {}
   const machine = run.machine || {}
 
+  const handleDelete = async () => {
+    if (!runId || isRunning) return
+    const ok = window.confirm(`Delete local run ${runId}? This cannot be undone.`)
+    if (!ok) return
+
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteRun(runId)
+      navigate('/leaderboard')
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete run')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div>
       {isFailed && (
@@ -132,6 +152,12 @@ export default function RunDetailPage() {
         </div>
       )}
 
+      {deleteError && (
+        <div className="card" style={{ padding: 12, marginBottom: 16, borderColor: 'rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.06)', color: '#ff8888', fontSize: '0.85rem' }}>
+          {deleteError}
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
           <button
@@ -145,12 +171,31 @@ export default function RunDetailPage() {
             Run <code style={{ fontFamily: 'var(--mono)' }}>{runId}</code> · {run.timestamp || '—'} · harness <strong>{run.harness || 'raw'}</strong> · provider <strong>{run.provider || '—'}</strong>
           </div>
         </div>
-        <Link
-          to={`/compare?a=${encodeURIComponent(runId || '')}`}
-          style={{ background: 'var(--bg-elev)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 6, fontSize: '0.85rem', textDecoration: 'none' }}
-        >
-          Compare with…
-        </Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={handleDelete}
+            disabled={isRunning || deleting}
+            title={isRunning ? 'Cancel active runs before deleting them.' : 'Delete this local run'}
+            style={{
+              background: 'rgba(239,68,68,0.08)',
+              border: '1px solid rgba(239,68,68,0.35)',
+              color: isRunning ? 'var(--text-dim)' : '#ff9999',
+              padding: '6px 14px',
+              borderRadius: 6,
+              fontSize: '0.85rem',
+              cursor: isRunning || deleting ? 'not-allowed' : 'pointer',
+              opacity: isRunning || deleting ? 0.6 : 1,
+            }}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+          <Link
+            to={`/compare?a=${encodeURIComponent(runId || '')}`}
+            style={{ background: 'var(--bg-elev)', border: '1px solid var(--border)', color: 'var(--text)', padding: '6px 14px', borderRadius: 6, fontSize: '0.85rem', textDecoration: 'none' }}
+          >
+            Compare with…
+          </Link>
+        </div>
       </div>
 
       {/* Top-line scores */}
