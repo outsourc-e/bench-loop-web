@@ -126,6 +126,29 @@ function parseAskBody(value: unknown): AskRequestBody | null {
   return { query }
 }
 
+function isGreeting(query: string): boolean {
+  const normalized = query.toLowerCase().replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim()
+  return /^(hi|hello|hey|yo|sup)( there)?( loop| benchloop)?$/.test(normalized)
+}
+
+function greetingResponse(query: string): AskResponse {
+  return {
+    query,
+    answer: "## Hi — I’m Loop.\n\nTell me your hardware and what you care about—speed, quality, context, coding, vision, or tool use—and I’ll combine measured BenchLoop runs with current web and X research.\n\nTry: **What is the best Qwen3.8-27B setup for an RTX 4090?**",
+    model: "Loop",
+    generated_at: new Date().toISOString(),
+    citations: [],
+    evidence: [],
+    research: {
+      live: false,
+      cache_hit: false,
+      response_id: null,
+      x_search_calls: 0,
+      web_search_calls: 0,
+    },
+  }
+}
+
 function queryTokens(query: string): string[] {
   const candidates = query.toLowerCase().match(/[a-z0-9][a-z0-9+._-]*/g) ?? []
   return [...new Set(candidates.filter((token) => token.length >= 2 && !STOP_WORDS.has(token)))].slice(0, 8)
@@ -297,6 +320,7 @@ export async function handleAsk(request: Request, env: Env, ctx: ExecutionContex
   }
   const body = parseAskBody(parsed)
   if (!body) return jsonResponse({ error: `query must be between 3 and ${MAX_QUERY_LENGTH} characters` }, 400)
+  if (isGreeting(body.query)) return jsonResponse(greetingResponse(body.query))
 
   const clientId = request.headers.get("X-BenchLoop-Client")?.slice(0, 128) ?? "anonymous"
   const connectingIp = request.headers.get("CF-Connecting-IP") ?? "unknown"
