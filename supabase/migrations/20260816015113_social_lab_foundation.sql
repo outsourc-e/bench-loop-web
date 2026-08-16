@@ -370,7 +370,7 @@ with check (id = (select auth.uid()));
 
 create policy rigs_visible_read on public.rigs
 for select to anon, authenticated
-using (visibility in ('public', 'unlisted') or owner_id = (select auth.uid()));
+using (visibility = 'public' or owner_id = (select auth.uid()));
 create policy rigs_self_insert on public.rigs
 for insert to authenticated
 with check (owner_id = (select auth.uid()));
@@ -410,7 +410,7 @@ using (owner_id = (select auth.uid()));
 
 create policy recipes_visible_read on public.recipes
 for select to anon, authenticated
-using (visibility in ('public', 'unlisted') or owner_id = (select auth.uid()));
+using (visibility = 'public' or owner_id = (select auth.uid()));
 create policy recipes_self_insert on public.recipes
 for insert to authenticated
 with check (owner_id = (select auth.uid()));
@@ -424,7 +424,7 @@ using (owner_id = (select auth.uid()));
 
 create policy runs_visible_read on public.runs
 for select to anon, authenticated
-using (visibility in ('public', 'unlisted') or owner_id = (select auth.uid()));
+using (visibility = 'public' or owner_id = (select auth.uid()));
 create policy runs_self_insert on public.runs
 for insert to authenticated
 with check (
@@ -441,7 +441,7 @@ with check (
     or exists (
       select 1 from public.recipes
       where recipes.id = runs.recipe_id
-        and (recipes.visibility in ('public', 'unlisted') or recipes.owner_id = (select auth.uid()))
+        and (recipes.visibility = 'public' or recipes.owner_id = (select auth.uid()))
     )
   )
 );
@@ -462,7 +462,7 @@ with check (
     or exists (
       select 1 from public.recipes
       where recipes.id = runs.recipe_id
-        and (recipes.visibility in ('public', 'unlisted') or recipes.owner_id = (select auth.uid()))
+        and (recipes.visibility = 'public' or recipes.owner_id = (select auth.uid()))
     )
   )
 );
@@ -472,7 +472,7 @@ using (owner_id = (select auth.uid()));
 
 create policy posts_visible_read on public.posts
 for select to anon, authenticated
-using (visibility in ('public', 'unlisted') or author_id = (select auth.uid()));
+using (visibility = 'public' or author_id = (select auth.uid()));
 create policy posts_self_insert on public.posts
 for insert to authenticated
 with check (
@@ -482,7 +482,7 @@ with check (
     or exists (
       select 1 from public.runs
       where runs.id = posts.run_id
-        and (runs.visibility in ('public', 'unlisted') or runs.owner_id = (select auth.uid()))
+        and (runs.visibility = 'public' or runs.owner_id = (select auth.uid()))
     )
   )
   and (
@@ -490,7 +490,7 @@ with check (
     or exists (
       select 1 from public.recipes
       where recipes.id = posts.recipe_id
-        and (recipes.visibility in ('public', 'unlisted') or recipes.owner_id = (select auth.uid()))
+        and (recipes.visibility = 'public' or recipes.owner_id = (select auth.uid()))
     )
   )
 );
@@ -504,7 +504,7 @@ with check (
     or exists (
       select 1 from public.runs
       where runs.id = posts.run_id
-        and (runs.visibility in ('public', 'unlisted') or runs.owner_id = (select auth.uid()))
+        and (runs.visibility = 'public' or runs.owner_id = (select auth.uid()))
     )
   )
   and (
@@ -512,7 +512,7 @@ with check (
     or exists (
       select 1 from public.recipes
       where recipes.id = posts.recipe_id
-        and (recipes.visibility in ('public', 'unlisted') or recipes.owner_id = (select auth.uid()))
+        and (recipes.visibility = 'public' or recipes.owner_id = (select auth.uid()))
     )
   )
 );
@@ -527,7 +527,7 @@ using (
   and exists (
     select 1 from public.posts
     where posts.id = comments.post_id
-      and (posts.visibility in ('public', 'unlisted') or posts.author_id = (select auth.uid()))
+      and (posts.visibility = 'public' or posts.author_id = (select auth.uid()))
   )
   and (
     parent_id is null
@@ -547,7 +547,7 @@ with check (
   and exists (
     select 1 from public.posts
     where posts.id = comments.post_id
-      and (posts.visibility in ('public', 'unlisted') or posts.author_id = (select auth.uid()))
+      and (posts.visibility = 'public' or posts.author_id = (select auth.uid()))
   )
   and (
     parent_id is null
@@ -567,7 +567,7 @@ with check (
   and exists (
     select 1 from public.posts
     where posts.id = comments.post_id
-      and (posts.visibility in ('public', 'unlisted') or posts.author_id = (select auth.uid()))
+      and (posts.visibility = 'public' or posts.author_id = (select auth.uid()))
   )
 );
 create policy comments_self_delete on public.comments
@@ -580,7 +580,7 @@ using (
   exists (
     select 1 from public.posts
     where posts.id = reactions.post_id
-      and (posts.visibility in ('public', 'unlisted') or posts.author_id = (select auth.uid()))
+      and (posts.visibility = 'public' or posts.author_id = (select auth.uid()))
   )
 );
 create policy reactions_self_insert on public.reactions
@@ -590,7 +590,7 @@ with check (
   and exists (
     select 1 from public.posts
     where posts.id = reactions.post_id
-      and (posts.visibility in ('public', 'unlisted') or posts.author_id = (select auth.uid()))
+      and (posts.visibility = 'public' or posts.author_id = (select auth.uid()))
   )
 );
 create policy reactions_self_delete on public.reactions
@@ -633,7 +633,7 @@ with check (
       and exists (
         select 1 from public.posts
         where posts.id = saves.post_id
-          and (posts.visibility in ('public', 'unlisted') or posts.author_id = (select auth.uid()))
+          and (posts.visibility = 'public' or posts.author_id = (select auth.uid()))
       )
     )
     or (
@@ -641,7 +641,7 @@ with check (
       and exists (
         select 1 from public.runs
         where runs.id = saves.run_id
-          and (runs.visibility in ('public', 'unlisted') or runs.owner_id = (select auth.uid()))
+          and (runs.visibility = 'public' or runs.owner_id = (select auth.uid()))
       )
     )
     or (
@@ -649,7 +649,7 @@ with check (
       and exists (
         select 1 from public.recipes
         where recipes.id = saves.recipe_id
-          and (recipes.visibility in ('public', 'unlisted') or recipes.owner_id = (select auth.uid()))
+          and (recipes.visibility = 'public' or recipes.owner_id = (select auth.uid()))
       )
     )
   )

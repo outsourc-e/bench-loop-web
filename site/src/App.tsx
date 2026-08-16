@@ -3,6 +3,7 @@ import { Link, NavLink, Route, Routes } from 'react-router-dom'
 import LoopLogo from './components/LoopLogo'
 import AuthButton from './components/AuthButton'
 import DocsPage from './pages/DocsPage'
+import ConnectPage from './pages/ConnectPage'
 import DownloadPage from './pages/DownloadPage'
 import ExplorePage from './pages/ExplorePage'
 import LandingPage from './pages/LandingPage'
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="/builders" element={<ExplorePage mode="builders" />} />
           <Route path="/recipes/:recipeId" element={<RecipePage />} />
           <Route path="/posts/:postId" element={<PostPage />} />
+          <Route path="/connect" element={<ConnectPage />} />
           <Route path="/u/:handle" element={<ProfilePage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/models/:modelName" element={<ModelDetailPage />} />

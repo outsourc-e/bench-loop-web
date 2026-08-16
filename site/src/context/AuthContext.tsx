@@ -15,7 +15,7 @@ type AuthContextValue = {
   profile: ViewerProfile | null
   loading: boolean
   configured: boolean
-  signInWithGitHub: () => Promise<void>
+  signInWithGitHub: (returnTo?: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -83,9 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [hydrateProfile])
 
-  const signInWithGitHub = useCallback(async () => {
+  const signInWithGitHub = useCallback(async (returnTo?: string) => {
     if (!supabase) throw new Error('BenchLoop accounts are not connected in this environment yet.')
-    const redirectTo = import.meta.env.VITE_SITE_URL?.trim() || window.location.origin
+    const currentLocation = `${window.location.origin}${window.location.pathname}${window.location.search}`
+    const redirectTo = returnTo || currentLocation || import.meta.env.VITE_SITE_URL?.trim() || window.location.origin
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: { redirectTo },

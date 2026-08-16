@@ -16,10 +16,12 @@ These are browser-safe values. Never expose a Supabase secret or `service_role` 
 
 1. Create a dedicated Supabase project.
 2. Apply the versioned migrations in `../supabase/migrations/`.
-3. In Supabase Auth, enable GitHub and enter the GitHub OAuth client ID and secret.
-4. In the GitHub OAuth app, set the callback URL shown by the Supabase GitHub provider screen.
-5. Add `https://bench-loop.com/**`, `https://www.bench-loop.com/**`, and the local development URL to the Supabase redirect allow list.
-6. Run the Supabase security and performance advisors and resolve all production findings.
+3. Deploy the Edge Functions in `../supabase/functions/` and set `BENCHLOOP_SITE_URL=https://bench-loop.com` as a function secret.
+4. Put rate limiting and the stable `/v1/runner/pair/*` and `/v1/runs` routes in front of the corresponding Edge Functions.
+5. In Supabase Auth, enable GitHub and enter the GitHub OAuth client ID and secret.
+6. In the GitHub OAuth app, set the callback URL shown by the Supabase GitHub provider screen.
+7. Add `https://bench-loop.com/**`, `https://www.bench-loop.com/**`, and the local development URL to the Supabase redirect allow list.
+8. Run the Supabase security and performance advisors and resolve all production findings.
 
 The application uses RLS-protected browser queries. Runner tokens will be issued by a separate server-side pairing flow; they must never be generated or stored in frontend code.
 
