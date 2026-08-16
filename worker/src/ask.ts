@@ -1,6 +1,9 @@
 import type { Env } from "./env"
 
 const MAX_QUERY_LENGTH = 800
+const MAX_HISTORY_MESSAGES = 8
+const MAX_HISTORY_MESSAGE_LENGTH = 4_000
+const MAX_HISTORY_TOTAL_LENGTH = 12_000
 const MAX_BRIDGE_RESPONSE_BYTES = 512_000
 const CACHE_TTL_SECONDS = 15 * 60
 const MAX_EVIDENCE_RUNS = 12
@@ -20,6 +23,12 @@ const MODEL_PREFIXES = [
 
 type AskRequestBody = {
   query: string
+  history: AskHistoryMessage[]
+}
+
+type AskHistoryMessage = {
+  role: "user" | "assistant"
+  content: string
 }
 
 type AskRunRow = {
@@ -123,7 +132,24 @@ function parseAskBody(value: unknown): AskRequestBody | null {
   if (!isRecord(value) || typeof value.query !== "string") return null
   const query = value.query.trim()
   if (query.length < 3 || query.length > MAX_QUERY_LENGTH) return null
-  return { query }
+  if (value.history !== undefined && !Array.isArray(value.history)) return null
+
+  const candidates = Array.isArray(value.history) ? value.history.slice(-MAX_HISTORY_MESSAGES) : []
+  if (candidates.length % 2 !== 0) return null
+  const history: AskHistoryMessage[] = []
+  let totalLength = 0
+  for (const [index, candidate] of candidates.entries()) {
+    if (!isRecord(candidate) || (candidate.role !== "user" && candidate.role !== "assistant") || typeof candidate.content !== "string") {
+      return null
+    }
+    if (candidate.role !== (index % 2 === 0 ? "user" : "assistant")) return null
+    const content = candidate.content.trim()
+    if (!content || content.length > MAX_HISTORY_MESSAGE_LENGTH) return null
+    totalLength += content.length
+    if (totalLength > MAX_HISTORY_TOTAL_LENGTH) return null
+    history.push({ role: candidate.role, content })
+  }
+  return { query, history }
 }
 
 function isGreeting(query: string): boolean {
@@ -259,7 +285,7 @@ function parseBridgeResearch(value: unknown): BridgeResearch | null {
   }
 }
 
-async function callResearchBridge(query: string, evidence: AskEvidence[], env: Env): Promise<BridgeResearch> {
+async function callResearchBridge(query: string, history: AskHistoryMessage[], evidence: AskEvidence[], env: Env): Promise<BridgeResearch> {
   const baseUrl = env.HERMES_BRIDGE_URL.replace(/\/$/, "")
   if (!baseUrl.startsWith("https://") && !baseUrl.startsWith("http://127.0.0.1")) {
     throw new Error("Ask research bridge URL is not allowed")
@@ -271,7 +297,7 @@ async function callResearchBridge(query: string, evidence: AskEvidence[], env: E
       "Authorization": `Bearer ${env.HERMES_BRIDGE_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, evidence }),
+    body: JSON.stringify({ query, history, evidence }),
     signal: AbortSignal.timeout(95_000),
   })
 
@@ -310,7 +336,7 @@ function cacheKeyRequest(hash: string): Request {
 
 export async function handleAsk(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   const contentLength = Number.parseInt(request.headers.get("Content-Length") ?? "0", 10)
-  if (contentLength > 16_384) return jsonResponse({ error: "request too large" }, 413)
+  if (contentLength > 32_768) return jsonResponse({ error: "request too large" }, 413)
 
   let parsed: unknown
   try {
@@ -330,7 +356,11 @@ export async function handleAsk(request: Request, env: Env, ctx: ExecutionContex
   }
 
   const normalizedQuery = body.query.toLowerCase().replace(/\s+/g, " ")
-  const hash = await digestHex(`ask-v4:${normalizedQuery}`)
+  const normalizedHistory = body.history.map((message) => ({
+    role: message.role,
+    content: message.content.toLowerCase().replace(/\s+/g, " "),
+  }))
+  const hash = await digestHex(`ask-v6:${JSON.stringify({ query: normalizedQuery, history: normalizedHistory })}`)
   const cacheRequest = cacheKeyRequest(hash)
   const cached = await caches.default.match(cacheRequest)
   if (cached) {
@@ -339,10 +369,14 @@ export async function handleAsk(request: Request, env: Env, ctx: ExecutionContex
     return jsonResponse(cachedPayload, 200, { "X-BenchLoop-Cache": "HIT" })
   }
 
-  const evidence = await findEvidence(body.query, env)
+  const evidenceQuery = [
+    ...body.history.filter((message) => message.role === "user").slice(-2).map((message) => message.content),
+    body.query,
+  ].join("\n").slice(-2_400)
+  const evidence = await findEvidence(evidenceQuery, env)
   let responsePayload: AskResponse
   try {
-    const research = await callResearchBridge(body.query, evidence, env)
+    const research = await callResearchBridge(body.query, body.history, evidence, env)
     responsePayload = {
       query: body.query,
       answer: research.answer,

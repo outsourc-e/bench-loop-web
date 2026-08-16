@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const ASK_URL = 'https://api.bench-loop.com/ask'
 const CLIENT_KEY = 'benchloop-ask-client'
+const THREAD_KEY = 'benchloop-ask-thread-v1'
+const MAX_THREAD_TURNS = 20
+const MAX_HISTORY_MESSAGES = 8
+const MAX_HISTORY_CHARS = 12_000
 
 export type AskEvidence = {
   id: string
@@ -47,10 +51,23 @@ export type AskResponse = {
   notice?: string
 }
 
-type AskState =
-  | { status: 'loading'; data: null; error: null }
-  | { status: 'success'; data: AskResponse; error: null }
-  | { status: 'error'; data: null; error: string }
+export type AskTurn = {
+  id: string
+  query: string
+  status: 'loading' | 'success' | 'error'
+  response?: AskResponse
+  error?: string
+}
+
+type HistoryMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+type PersistedThread = {
+  seed: string | null
+  turns: AskTurn[]
+}
 
 function clientId(): string {
   const existing = localStorage.getItem(CLIENT_KEY)
@@ -60,41 +77,171 @@ function clientId(): string {
   return created
 }
 
-export function useAsk(query: string) {
-  const [retryKey, setRetryKey] = useState(0)
-  const [state, setState] = useState<AskState>({ status: 'loading', data: null, error: null })
+function validResponse(value: unknown): value is AskResponse {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<AskResponse>
+  return typeof candidate.query === 'string'
+    && typeof candidate.answer === 'string'
+    && typeof candidate.model === 'string'
+    && Array.isArray(candidate.citations)
+    && Array.isArray(candidate.evidence)
+    && !!candidate.research
+}
+
+function loadThread(seed: string | null): AskTurn[] | null {
+  try {
+    const raw = sessionStorage.getItem(THREAD_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<PersistedThread>
+    if (parsed.seed !== seed || !Array.isArray(parsed.turns) || parsed.turns.length === 0) return null
+    const turns = parsed.turns.slice(-MAX_THREAD_TURNS)
+    if (!turns.every((turn) => turn?.status === 'success' && typeof turn.id === 'string' && typeof turn.query === 'string' && validResponse(turn.response))) {
+      return null
+    }
+    return turns
+  } catch {
+    return null
+  }
+}
+
+function historyFrom(turns: AskTurn[]): HistoryMessage[] {
+  const completed = turns
+    .filter((turn) => turn.status === 'success' && turn.response)
+    .slice(-(MAX_HISTORY_MESSAGES / 2))
+
+  const bounded: HistoryMessage[] = []
+  let chars = 0
+  for (const turn of completed.reverse()) {
+    const pair: HistoryMessage[] = [
+      { role: 'user', content: turn.query.slice(0, 4_000) },
+      { role: 'assistant', content: turn.response!.answer.slice(0, 4_000) },
+    ]
+    const pairChars = pair[0].content.length + pair[1].content.length
+    if (chars + pairChars > MAX_HISTORY_CHARS) break
+    bounded.unshift(...pair)
+    chars += pairChars
+  }
+  return bounded
+}
+
+async function requestAnswer(query: string, history: HistoryMessage[], signal: AbortSignal): Promise<AskResponse> {
+  const response = await fetch(ASK_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-BenchLoop-Client': clientId(),
+    },
+    body: JSON.stringify({ query, history }),
+    signal,
+  })
+  const payload: unknown = await response.json()
+  if (!response.ok) {
+    const error = payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string'
+      ? payload.error
+      : `Ask Loop failed (${response.status})`
+    throw new Error(error)
+  }
+  if (!validResponse(payload)) throw new Error('Ask Loop returned an invalid response.')
+  return payload
+}
+
+export function useAskThread(seed: string | null) {
+  const [turns, setTurns] = useState<AskTurn[]>([])
+  const [pending, setPending] = useState(false)
+  const turnsRef = useRef<AskTurn[]>([])
+  const controllerRef = useRef<AbortController | null>(null)
+  const pendingRef = useRef(false)
+
+  const updateTurns = useCallback((updater: (current: AskTurn[]) => AskTurn[]) => {
+    setTurns((current) => {
+      const next = updater(current).slice(-MAX_THREAD_TURNS)
+      turnsRef.current = next
+      return next
+    })
+  }, [])
+
+  const runTurn = useCallback(async (id: string, query: string, history: HistoryMessage[]) => {
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    pendingRef.current = true
+    setPending(true)
+    try {
+      const response = await requestAnswer(query, history, controller.signal)
+      updateTurns((current) => current.map((turn) => turn.id === id
+        ? { ...turn, status: 'success', response, error: undefined }
+        : turn))
+    } catch (error: unknown) {
+      if (controller.signal.aborted) return
+      updateTurns((current) => current.map((turn) => turn.id === id
+        ? { ...turn, status: 'error', error: error instanceof Error ? error.message : 'Ask Loop could not answer right now.' }
+        : turn))
+    } finally {
+      if (controllerRef.current === controller) {
+        controllerRef.current = null
+        pendingRef.current = false
+        setPending(false)
+      }
+    }
+  }, [updateTurns])
+
+  const send = useCallback((value: string) => {
+    const query = value.trim()
+    if (!query || pendingRef.current) return
+    const history = historyFrom(turnsRef.current)
+    const id = crypto.randomUUID()
+    updateTurns((current) => [...current, { id, query, status: 'loading' }])
+    void runTurn(id, query, history)
+  }, [runTurn, updateTurns])
+
+  const retry = useCallback((id: string) => {
+    if (pendingRef.current) return
+    const index = turnsRef.current.findIndex((turn) => turn.id === id)
+    if (index < 0) return
+    const turn = turnsRef.current[index]
+    const history = historyFrom(turnsRef.current.slice(0, index))
+    updateTurns((current) => current.map((item) => item.id === id
+      ? { ...item, status: 'loading', error: undefined }
+      : item))
+    void runTurn(id, turn.query, history)
+  }, [runTurn, updateTurns])
+
+  const reset = useCallback(() => {
+    controllerRef.current?.abort()
+    controllerRef.current = null
+    pendingRef.current = false
+    turnsRef.current = []
+    setTurns([])
+    setPending(false)
+    sessionStorage.removeItem(THREAD_KEY)
+  }, [])
 
   useEffect(() => {
-    const controller = new AbortController()
-    setState({ status: 'loading', data: null, error: null })
+    controllerRef.current?.abort()
+    const restored = loadThread(seed)
+    if (restored) {
+      turnsRef.current = restored
+      setTurns(restored)
+      pendingRef.current = false
+      setPending(false)
+      return
+    }
+    turnsRef.current = []
+    setTurns([])
+    pendingRef.current = false
+    setPending(false)
+    if (!seed) return
+    const id = crypto.randomUUID()
+    const initial = [{ id, query: seed, status: 'loading' as const }]
+    turnsRef.current = initial
+    setTurns(initial)
+    void runTurn(id, seed, [])
+  }, [runTurn, seed])
 
-    fetch(ASK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-BenchLoop-Client': clientId(),
-      },
-      body: JSON.stringify({ query }),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const payload = await response.json() as AskResponse | { error?: string }
-        if (!response.ok) {
-          throw new Error('error' in payload && payload.error ? payload.error : `Ask Loop failed (${response.status})`)
-        }
-        setState({ status: 'success', data: payload as AskResponse, error: null })
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return
-        setState({
-          status: 'error',
-          data: null,
-          error: error instanceof Error ? error.message : 'Ask Loop could not answer right now.',
-        })
-      })
+  useEffect(() => {
+    if (turns.length === 0) return
+    sessionStorage.setItem(THREAD_KEY, JSON.stringify({ seed, turns } satisfies PersistedThread))
+  }, [seed, turns])
 
-    return () => controller.abort()
-  }, [query, retryKey])
-
-  return { ...state, retry: () => setRetryKey((value) => value + 1) }
+  return { turns, pending, send, retry, reset }
 }

@@ -10,9 +10,22 @@ const starterQueries = [
 type AskBoxProps = {
   initialValue?: string
   compact?: boolean
+  disabled?: boolean
+  placeholder?: string
+  submitLabel?: string
+  clearAfterSubmit?: boolean
+  onAsk?: (query: string) => void
 }
 
-export default function AskBox({ initialValue = '', compact = false }: AskBoxProps) {
+export default function AskBox({
+  initialValue = '',
+  compact = false,
+  disabled = false,
+  placeholder = 'Ask about a model, quant, runtime, or your hardware…',
+  submitLabel = 'Ask Loop',
+  clearAfterSubmit = false,
+  onAsk,
+}: AskBoxProps) {
   const [query, setQuery] = useState(initialValue)
   const navigate = useNavigate()
 
@@ -21,12 +34,17 @@ export default function AskBox({ initialValue = '', compact = false }: AskBoxPro
   const submit = (event: FormEvent) => {
     event.preventDefault()
     const next = query.trim()
-    if (next) navigate(`/ask?q=${encodeURIComponent(next)}`)
+    if (!next || disabled) return
+    if (onAsk) onAsk(next)
+    else navigate(`/ask?q=${encodeURIComponent(next)}`)
+    if (clearAfterSubmit) setQuery('')
   }
 
   const ask = (value: string) => {
     setQuery(value)
-    navigate(`/ask?q=${encodeURIComponent(value)}`)
+    if (onAsk) onAsk(value)
+    else navigate(`/ask?q=${encodeURIComponent(value)}`)
+    if (clearAfterSubmit) setQuery('')
   }
 
   return (
@@ -37,10 +55,11 @@ export default function AskBox({ initialValue = '', compact = false }: AskBoxPro
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Ask about a model, quant, runtime, or your hardware…"
+          placeholder={placeholder}
           aria-label="Ask BenchLoop"
+          disabled={disabled}
         />
-        <button type="submit" aria-label="Search BenchLoop">Ask Loop <span>↗</span></button>
+        <button type="submit" aria-label="Search BenchLoop" disabled={disabled || !query.trim()}>{submitLabel} <span>↗</span></button>
       </form>
       {!compact && (
         <div className="revamp-query-row">

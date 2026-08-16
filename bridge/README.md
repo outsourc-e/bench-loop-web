@@ -4,6 +4,8 @@ Ask Loop keeps the browser and Cloudflare Worker away from the local Hermes/xAI
 OAuth session. The Worker retrieves matching BenchLoop runs from D1, then calls
 this small authenticated bridge through Cloudflare Tunnel. The bridge can only
 reach the fixed local Hermes Responses endpoint and never returns OAuth tokens.
+Conversation threads remain in the browser tab; the Worker and bridge validate
+and forward at most four recent user/assistant turn pairs for contextual follow-ups.
 
 ## Local run
 
