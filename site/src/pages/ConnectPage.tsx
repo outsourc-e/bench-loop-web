@@ -63,7 +63,7 @@ export default function ConnectPage() {
             <form onSubmit={(event) => void approve(event)}>
               <label htmlFor="runner-code">Pairing code</label>
               <input id="runner-code" value={code} onChange={(event) => setCode(formatCode(event.target.value))} placeholder="ABCD-EFGH" autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} />
-              <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Approving…' : user ? 'Approve this Runner' : 'Sign in with GitHub to approve'}</button>
+              <button className="btn btn-primary" type="submit" disabled={busy}>{busy ? 'Approving…' : user ? 'Approve this Runner' : 'Sign in to approve'}</button>
             </form>
             <div className="connect-identity">
               <span>{user ? `Approving as @${profile?.handle || 'builder'}` : 'No account session yet'}</span>

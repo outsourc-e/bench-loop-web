@@ -1,24 +1,54 @@
-/// <reference types="@cloudflare/workers-types" />
-
 import { handleAsk } from "./ask"
-import type { Env } from "./env"
+import { authAvailable, createAuth, siteOrigins } from "./auth"
+import { handleCommunity } from "./community"
+import { authenticateRunner, handleRunner } from "./runner"
+import { handleThreads } from "./threads"
 
 // BenchLoop public submit API.
-// POST /submit       — accept a run.json payload, validate, store
+// POST /submit       — accept a legacy public run.json payload, validate, store
+// POST /v1/runs      — publish an account-owned run with a Runner bearer token
 // GET  /leaderboard  — return best-per-(model,harness) sorted by overall_score
 // GET  /runs/:id     — return a specific run
 // POST /ask          — answer from BenchLoop evidence + live research
 // GET  /health       — basic health probe
+// ALL  /api/auth/*   — Better Auth on Cloudflare D1
+// ALL  /account/*    — viewer profile and rig APIs
+// ALL  /community/*  — social feed, posts, comments, follows
+// ALL  /threads/*    — persistent Ask Loop threads
+// POST /runner/pair/* — one-time Runner device authorization
 
-const corsHeaders = (origin: string | null, allowed: string) => {
+const publicCorsHeaders = (origin: string | null, allowed: string) => {
   const allow =
     allowed === "*" || !origin ? "*" : allowed.split(",").map((s) => s.trim()).includes(origin) ? origin : "null"
   return {
     "Access-Control-Allow-Origin": allow,
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, X-BenchLoop-Client",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-BenchLoop-Client",
     "Access-Control-Max-Age": "86400",
   }
+}
+
+const credentialCorsHeaders = (origin: string | null, env: Env) => {
+  const trusted = siteOrigins(env)
+  const allow = origin && trusted.includes(origin) ? origin : "null"
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type, X-BenchLoop-Client",
+    "Access-Control-Max-Age": "86400",
+    "Vary": "Origin",
+  }
+}
+
+function withHeaders(response: Response, headers: Record<string, string>): Response {
+  const nextHeaders = new Headers(response.headers)
+  for (const [name, value] of Object.entries(headers)) nextHeaders.set(name, value)
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: nextHeaders,
+  })
 }
 
 const json = (data: unknown, status = 200, extraHeaders: Record<string, string> = {}) =>
@@ -69,6 +99,12 @@ interface RunPayload {
   suites?: Record<string, { score?: number; pass_count?: number; task_count?: number }>
 }
 
+type RunnerContext = {
+  id: number
+  ownerId: string
+  name: string
+}
+
 function validate(payload: RunPayload): { ok: true; data: Required<Pick<RunPayload, "model" | "machine" | "suites">> & RunPayload } | { ok: false; error: string } {
   if (!payload || typeof payload !== "object") return { ok: false, error: "body must be an object" }
   if (!payload.model?.model_id) return { ok: false, error: "model.model_id required" }
@@ -82,13 +118,24 @@ function validate(payload: RunPayload): { ok: true; data: Required<Pick<RunPaylo
   return { ok: true, data: payload as any }
 }
 
-async function handleSubmit(request: Request, env: Env): Promise<Response> {
+async function handleSubmit(request: Request, env: Env, runner: RunnerContext | null = null): Promise<Response> {
   let body: RunPayload
+  let visibility = "public"
+  let createPost = false
   try {
-    body = (await request.json()) as RunPayload
+    const raw: unknown = await request.json()
+    if (runner && raw && typeof raw === "object" && !Array.isArray(raw) && "run" in raw) {
+      const envelope = raw as { run?: unknown; visibility?: unknown; create_post?: unknown }
+      body = envelope.run as RunPayload
+      visibility = typeof envelope.visibility === "string" ? envelope.visibility : "public"
+      createPost = envelope.create_post !== false
+    } else {
+      body = raw as RunPayload
+    }
   } catch {
     return json({ error: "invalid JSON" }, 400)
   }
+  if (!['public', 'unlisted', 'private'].includes(visibility)) return json({ error: "invalid_visibility" }, 400)
   const v = validate(body)
   if (!v.ok) return json({ error: v.error }, 400)
   const p = v.data
@@ -108,6 +155,48 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
 
   const submitterIp = request.headers.get("CF-Connecting-IP") || ""
   const userAgent = request.headers.get("User-Agent") || ""
+  let rigId: number | null = null
+  let profileName = p.profile?.name || ""
+  let profileAvatarUrl = p.profile?.avatar_url || ""
+  let profileUrl = p.profile?.profile_url || ""
+
+  if (runner) {
+    const hardwareLabel = (p.machine!.hardware_label || p.machine!.gpu || p.machine!.cpu || runner.name).slice(0, 200)
+    const rig = await env.DB.prepare(
+      `INSERT INTO rigs
+        (owner_id, name, hardware_label, cpu, gpu, system_memory_gb, gpu_memory_gb,
+         operating_system, visibility, last_seen_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       ON CONFLICT(owner_id, name) DO UPDATE SET
+         hardware_label = excluded.hardware_label,
+         cpu = excluded.cpu,
+         gpu = excluded.gpu,
+         system_memory_gb = excluded.system_memory_gb,
+         gpu_memory_gb = excluded.gpu_memory_gb,
+         operating_system = excluded.operating_system,
+         visibility = excluded.visibility,
+         last_seen_at = CURRENT_TIMESTAMP,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING id`,
+    ).bind(
+      runner.ownerId,
+      runner.name.slice(0, 80),
+      hardwareLabel,
+      p.machine!.cpu || null,
+      p.machine!.gpu || null,
+      p.machine!.system_memory_gb ?? null,
+      p.machine!.gpu_memory_gb ?? null,
+      p.machine!.os || null,
+      visibility,
+    ).first<{ id: number }>()
+    rigId = rig?.id ?? null
+    const owner = await env.DB.prepare(
+      "SELECT handle, display_name, avatar_url FROM profiles WHERE id = ?",
+    ).bind(runner.ownerId).first<{ handle: string; display_name: string; avatar_url: string | null }>()
+    profileName = owner?.display_name || runner.name
+    profileAvatarUrl = owner?.avatar_url || ""
+    profileUrl = owner ? `${verificationOrigin(env)}/u/${encodeURIComponent(owner.handle)}` : ""
+  }
   const suitesSummary = Object.fromEntries(
     Object.entries(p.suites!).map(([name, suite]) => [
       name,
@@ -130,8 +219,9 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       overall_score, quality_score, speed_score, reliability_score, value_score,
       generation_tok_per_sec, ttft_ms, total_runtime_sec,
       is_full_benchmark, is_quality_full, is_agent_only,
-      suites_json, suites_summary_json, submitter_ip, user_agent
-    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?)`,
+      suites_json, suites_summary_json, submitter_ip, user_agent,
+      owner_id, rig_id, visibility, verification_level
+    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?, ?,?,?,?)`,
   )
     .bind(
       id,
@@ -151,12 +241,12 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       p.machine!.system_memory_gb ?? 0,
       p.machine!.os || "",
       p.machine!.is_remote ? 1 : 0,
-      p.machine!.remote_host || "",
-      p.machine!.endpoint || "",
+      runner ? "" : p.machine!.remote_host || "",
+      runner ? "" : p.machine!.endpoint || "",
       p.machine!.hardware_label || "",
-      p.profile?.name || "",
-      p.profile?.avatar_url || "",
-      p.profile?.profile_url || "",
+      profileName,
+      profileAvatarUrl,
+      profileUrl,
       p.command_used || "",
       p.overall_score!,
       p.quality_score ?? null,
@@ -173,10 +263,53 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       JSON.stringify(suitesSummary),
       submitterIp,
       userAgent,
+      runner?.ownerId || null,
+      rigId,
+      visibility,
+      runner ? "signed" : "captured",
     )
     .run()
 
-  return json({ ok: true, id, is_full_benchmark: isFull, is_quality_full: isQualityFull, is_agent_only: isAgentOnly })
+  let postId: number | null = null
+  if (runner) {
+    await env.DB.prepare("UPDATE runner_devices SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ? AND owner_id = ?")
+      .bind(runner.id, runner.ownerId).run()
+    if (createPost && visibility === "public") {
+      const speed = p.speed_metrics?.generation_tok_per_sec
+      const hardware = p.machine!.hardware_label || p.machine!.gpu || p.machine!.cpu || runner.name
+      const summary = `${modelId} scored ${p.overall_score!.toFixed(1)} overall on ${hardware}${typeof speed === "number" ? ` at ${speed.toFixed(1)} tok/s` : ""}. Captured and signed by BenchLoop Runner.`
+      const post = await env.DB.prepare(
+        `INSERT INTO posts (author_id, run_id, title, body, visibility, created_at, updated_at)
+         SELECT ?, ?, ?, ?, 'public', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          WHERE NOT EXISTS (SELECT 1 FROM posts WHERE author_id = ? AND run_id = ?)
+         RETURNING id`,
+      ).bind(
+        runner.ownerId,
+        id,
+        `${modelId} on ${hardware}`.slice(0, 180),
+        summary.slice(0, 10_000),
+        runner.ownerId,
+        id,
+      ).first<{ id: number }>()
+      postId = post?.id ?? null
+    }
+  }
+
+  return json({
+    ok: true,
+    id,
+    run_id: id,
+    post_id: postId,
+    url: postId ? `${verificationOrigin(env)}/posts/${postId}` : `${verificationOrigin(env)}/runs`,
+    is_full_benchmark: isFull,
+    is_quality_full: isQualityFull,
+    is_agent_only: isAgentOnly,
+  }, runner ? 201 : 200)
+}
+
+function verificationOrigin(env: Env): string {
+  return siteOrigins(env).find((origin) => origin.startsWith("https://") && !origin.includes("www."))
+    || "https://bench-loop.com"
 }
 
 function boundedInteger(value: string | null, fallback: number, min: number, max: number): number {
@@ -310,24 +443,57 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
     const origin = request.headers.get("Origin")
-    const cors = corsHeaders(origin, env.ALLOWED_ORIGINS)
+    const credentialPath = url.pathname.startsWith("/api/auth/")
+      || url.pathname.startsWith("/account/")
+      || url.pathname.startsWith("/community/")
+      || url.pathname === "/runner/pair/approve"
+      || url.pathname === "/v1/runner/pair/approve"
+      || url.pathname === "/threads"
+      || url.pathname.startsWith("/threads/")
+    const cors = credentialPath
+      ? credentialCorsHeaders(origin, env)
+      : publicCorsHeaders(origin, env.ALLOWED_ORIGINS)
 
-    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors })
+    if (request.method === "OPTIONS") {
+      if (credentialPath && origin && cors["Access-Control-Allow-Origin"] === "null") {
+        return json({ error: "origin_not_allowed" }, 403)
+      }
+      return new Response(null, { status: 204, headers: cors })
+    }
 
     let resp: Response
     try {
-      if (url.pathname === "/health") resp = json({ ok: true, ts: new Date().toISOString() })
+      if (url.pathname === "/health") resp = json({ ok: true, accounts: authAvailable(env), ts: new Date().toISOString() })
+      else if (url.pathname.startsWith("/api/auth/")) {
+        resp = authAvailable(env)
+          ? await createAuth(env, ctx).handler(request)
+          : json({ error: "accounts_not_configured" }, 503)
+      }
+      else if (url.pathname.startsWith("/account/") || url.pathname.startsWith("/community/")) {
+        resp = url.pathname.startsWith("/account/runners")
+          ? await handleRunner(request, env, ctx)
+          : await handleCommunity(request, env, ctx)
+      }
+      else if (url.pathname.startsWith("/runner/pair/") || url.pathname.startsWith("/v1/runner/pair/")) resp = await handleRunner(request, env, ctx)
+      else if (url.pathname === "/threads" || url.pathname.startsWith("/threads/")) resp = await handleThreads(request, env, ctx)
       else if (url.pathname === "/submit" && request.method === "POST") resp = await handleSubmit(request, env)
+      else if (url.pathname === "/v1/runs" && request.method === "POST") {
+        const runner = await authenticateRunner(request, env)
+        resp = runner ? await handleSubmit(request, env, runner) : json({ error: "invalid_runner_token" }, 401)
+      }
       else if (url.pathname === "/ask" && request.method === "POST") resp = await handleAsk(request, env, ctx)
       else if (url.pathname === "/leaderboard") resp = await handleLeaderboard(request, env)
       else if (url.pathname.startsWith("/runs/")) resp = await handleRun(decodeURIComponent(url.pathname.slice(6)), env)
-      else resp = json({ error: "not found", routes: ["/health", "POST /submit", "POST /ask", "/leaderboard", "/runs/:id"] }, 404)
+      else resp = json({
+        error: "not found",
+        routes: ["/health", "/api/auth/*", "/account/*", "/community/*", "/threads/*", "/runner/pair/*", "/v1/runner/pair/*", "POST /v1/runs", "POST /submit", "POST /ask", "/leaderboard", "/runs/:id"],
+      }, 404)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "internal error"
-      resp = json({ error: message }, 500)
+      console.error(JSON.stringify({ message: "request_failed", error: message, method: request.method, path: url.pathname }))
+      resp = json({ error: "internal_error" }, 500)
     }
 
-    Object.entries(cors).forEach(([k, v]) => resp.headers.set(k, v as string))
-    return resp
+    return withHeaders(resp, cors)
   },
 }

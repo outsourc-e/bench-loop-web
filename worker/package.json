@@ -3,14 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "deploy": "wrangler deploy",
-    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --config wrangler.jsonc",
+    "deploy:dry": "wrangler deploy --dry-run --config wrangler.jsonc",
+    "dev": "wrangler dev --config wrangler.jsonc",
+    "types": "wrangler types ./src/env.d.ts --config wrangler.jsonc",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply bench-loop --local --config wrangler.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply bench-loop --remote --config wrangler.jsonc",
     "db:init": "wrangler d1 execute bench-loop --remote --file=schema.sql",
     "db:local": "wrangler d1 execute bench-loop --local --file=schema.sql"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260816.1",
     "typescript": "^5.5.0",
     "wrangler": "^4.123.0"
+  },
+  "dependencies": {
+    "better-auth": "1.6.29"
   }
 }

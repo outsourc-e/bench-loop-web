@@ -2,16 +2,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { feedItems, type FeedItem } from '../data/discovery'
 import { useAuth } from '../context/AuthContext'
 import { loadFeed } from '../lib/community'
-import { supabaseConfigured } from '../lib/supabase'
+import { backendConfigured } from '../lib/backend'
 
 export function useDiscoveryFeed(limit = 20) {
   const { user } = useAuth()
-  const [items, setItems] = useState<FeedItem[]>(supabaseConfigured ? [] : feedItems.slice(0, limit))
-  const [loading, setLoading] = useState(supabaseConfigured)
+  const [items, setItems] = useState<FeedItem[]>(backendConfigured ? [] : feedItems.slice(0, limit))
+  const [loading, setLoading] = useState(backendConfigured)
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!supabaseConfigured) return
+    if (!backendConfigured) return
     setLoading(true)
     try {
       setItems(await loadFeed(limit, user?.id))
@@ -26,5 +26,5 @@ export function useDiscoveryFeed(limit = 20) {
 
   useEffect(() => { void refresh() }, [refresh])
 
-  return { items, loading, error, refresh, isLive: supabaseConfigured && !error }
+  return { items, loading, error, refresh, isLive: backendConfigured && !error }
 }

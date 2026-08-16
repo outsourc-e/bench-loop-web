@@ -6,6 +6,7 @@ import BrandIcon from '../components/BrandIcon'
 import DiscoveryFeed from '../components/DiscoveryFeed'
 import { hardwareProfiles, trendItems, type FeedKind } from '../data/discovery'
 import { useAskThread, type AskEvidence, type AskResponse } from '../hooks/useAsk'
+import { useAuth } from '../context/AuthContext'
 
 type ExploreMode = 'ask' | 'feed' | 'news' | 'runs' | 'recipes' | 'builders'
 
@@ -88,6 +89,7 @@ export default function ExplorePage({ mode }: { mode: ExploreMode }) {
 }
 
 function AnswerPage({ query }: { query: string | null }) {
+  const { user } = useAuth()
   const thread = useAskThread(query)
   const [shared, setShared] = useState(false)
   const navigate = useNavigate()
@@ -121,7 +123,11 @@ function AnswerPage({ query }: { query: string | null }) {
       <div className="revamp-thread-toolbar">
         <div>
           <span className="live-dot" />
-          <span><strong>Ask Loop</strong><small>{thread.turns.length ? `${thread.turns.length} turn${thread.turns.length === 1 ? '' : 's'} · saved in this tab` : 'new research thread'}</small></span>
+          <span><strong>Ask Loop</strong><small>{thread.turns.length
+            ? `${thread.turns.length} turn${thread.turns.length === 1 ? '' : 's'} · ${user
+              ? thread.persistence === 'saving' ? 'saving to your account' : thread.persistence === 'error' ? 'saved locally' : 'saved to your account'
+              : 'saved in this tab'}`
+            : 'new research thread'}</small></span>
         </div>
         <button type="button" onClick={newThread}>＋ New thread</button>
       </div>
@@ -178,7 +184,7 @@ function AnswerPage({ query }: { query: string | null }) {
               placeholder={thread.turns.length ? 'Ask a follow-up using this context…' : 'Ask Loop about your local AI stack…'}
               submitLabel={thread.pending ? 'Researching' : 'Send'}
             />
-            <small>Recent context stays in this tab. Research questions may take 30–90 seconds.</small>
+            <small>{user ? 'This thread follows your BenchLoop account.' : 'Recent context stays in this tab until you sign in.'} Research questions may take 30–90 seconds.</small>
           </div>
           <div ref={bottomRef} />
         </article>

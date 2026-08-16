@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { apiBaseUrl, apiFetch } from '../lib/backend'
 
-const ASK_URL = 'https://api.bench-loop.com/ask'
+const ASK_URL = `${apiBaseUrl}/ask`
 const CLIENT_KEY = 'benchloop-ask-client'
 const THREAD_KEY = 'benchloop-ask-thread-v1'
 const MAX_THREAD_TURNS = 20
@@ -65,9 +67,12 @@ type HistoryMessage = {
 }
 
 type PersistedThread = {
+  id: string
   seed: string | null
   turns: AskTurn[]
 }
+
+export type ThreadPersistence = 'local' | 'saving' | 'account' | 'error'
 
 function clientId(): string {
   const existing = localStorage.getItem(CLIENT_KEY)
@@ -88,7 +93,7 @@ function validResponse(value: unknown): value is AskResponse {
     && !!candidate.research
 }
 
-function loadThread(seed: string | null): AskTurn[] | null {
+function loadThread(seed: string | null): PersistedThread | null {
   try {
     const raw = sessionStorage.getItem(THREAD_KEY)
     if (!raw) return null
@@ -98,7 +103,11 @@ function loadThread(seed: string | null): AskTurn[] | null {
     if (!turns.every((turn) => turn?.status === 'success' && typeof turn.id === 'string' && typeof turn.query === 'string' && validResponse(turn.response))) {
       return null
     }
-    return turns
+    return {
+      id: typeof parsed.id === 'string' && /^[a-zA-Z0-9_-]{8,80}$/.test(parsed.id) ? parsed.id : crypto.randomUUID(),
+      seed,
+      turns,
+    }
   } catch {
     return null
   }
@@ -146,8 +155,11 @@ async function requestAnswer(query: string, history: HistoryMessage[], signal: A
 }
 
 export function useAskThread(seed: string | null) {
+  const { user } = useAuth()
   const [turns, setTurns] = useState<AskTurn[]>([])
   const [pending, setPending] = useState(false)
+  const [threadId, setThreadId] = useState<string>(() => crypto.randomUUID())
+  const [persistence, setPersistence] = useState<ThreadPersistence>('local')
   const turnsRef = useRef<AskTurn[]>([])
   const controllerRef = useRef<AbortController | null>(null)
   const pendingRef = useRef(false)
@@ -213,6 +225,8 @@ export function useAskThread(seed: string | null) {
     turnsRef.current = []
     setTurns([])
     setPending(false)
+    setThreadId(crypto.randomUUID())
+    setPersistence('local')
     sessionStorage.removeItem(THREAD_KEY)
   }, [])
 
@@ -220,14 +234,16 @@ export function useAskThread(seed: string | null) {
     controllerRef.current?.abort()
     const restored = loadThread(seed)
     if (restored) {
-      turnsRef.current = restored
-      setTurns(restored)
+      turnsRef.current = restored.turns
+      setTurns(restored.turns)
+      setThreadId(restored.id)
       pendingRef.current = false
       setPending(false)
       return
     }
     turnsRef.current = []
     setTurns([])
+    setThreadId(crypto.randomUUID())
     pendingRef.current = false
     setPending(false)
     if (!seed) return
@@ -240,8 +256,31 @@ export function useAskThread(seed: string | null) {
 
   useEffect(() => {
     if (turns.length === 0) return
-    sessionStorage.setItem(THREAD_KEY, JSON.stringify({ seed, turns } satisfies PersistedThread))
-  }, [seed, turns])
+    sessionStorage.setItem(THREAD_KEY, JSON.stringify({ id: threadId, seed, turns } satisfies PersistedThread))
+    if (!user) {
+      setPersistence('local')
+      return
+    }
 
-  return { turns, pending, send, retry, reset }
+    setPersistence('saving')
+    const timer = window.setTimeout(() => {
+      const title = turns[0]?.query.trim().slice(0, 160) || 'New Ask Loop thread'
+      void apiFetch<{ ok: boolean }>(`/threads/${encodeURIComponent(threadId)}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          title,
+          turns: turns.map((turn) => ({
+            id: turn.id,
+            query: turn.query,
+            response: turn.status === 'success' ? turn.response || null : null,
+          })),
+        }),
+      })
+        .then(() => setPersistence('account'))
+        .catch(() => setPersistence('error'))
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [seed, threadId, turns, user])
+
+  return { turns, pending, send, retry, reset, threadId, persistence }
 }

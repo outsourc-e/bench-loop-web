@@ -11,6 +11,7 @@ dist/
 
 # Vite cache
 .vite/
+.wrangler/
 
 # Env
 .env

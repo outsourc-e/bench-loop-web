@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { loadComments, loadPost, publishComment, type CommentItem } from '../lib/community'
-import { supabase, supabaseConfigured } from '../lib/supabase'
 import type { FeedItem } from '../data/discovery'
 
 export default function PostPage() {
@@ -34,17 +33,6 @@ export default function PostPage() {
 
   useEffect(() => { void refresh() }, [refresh])
 
-  useEffect(() => {
-    const client = supabase
-    if (!client || !Number.isInteger(postId)) return
-    const channel = client
-      .channel(`post-${postId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'comments', filter: `post_id=eq.${postId}` }, () => void refresh())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reactions', filter: `post_id=eq.${postId}` }, () => void refresh())
-      .subscribe()
-    return () => { void client.removeChannel(channel) }
-  }, [postId, refresh])
-
   const submitComment = async (event: FormEvent) => {
     event.preventDefault()
     if (!user) {
@@ -70,7 +58,7 @@ export default function PostPage() {
     return (
       <section className="revamp-empty card-premium">
         <span className="page-kicker">Discussion</span>
-        <h1>{supabaseConfigured ? 'This post is not available.' : 'Community posts are waiting for live mode.'}</h1>
+        <h1>This post is not available.</h1>
         <p>{notice || 'The visual prototype remains available in the main discovery feed.'}</p>
         <Link to="/explore" className="btn btn-primary">Back to Explore</Link>
       </section>
@@ -92,7 +80,7 @@ export default function PostPage() {
         <form className="thread-reply card" onSubmit={(event) => void submitComment(event)}>
           <strong>{user ? `Reply as @${profile?.handle || 'builder'}` : 'Join the discussion'}</strong>
           <textarea value={body} onChange={(event) => setBody(event.target.value)} rows={3} maxLength={4000} placeholder="Add evidence, a reproduction result, or a useful question…" />
-          <div><small>{notice || 'Keep claims reproducible and attach a run when possible.'}</small><button type="submit" className="btn btn-primary" disabled={Boolean(user && !body.trim())}>{user ? 'Reply' : 'Sign in with GitHub'}</button></div>
+          <div><small>{notice || 'Keep claims reproducible and attach a run when possible.'}</small><button type="submit" className="btn btn-primary" disabled={Boolean(user && !body.trim())}>{user ? 'Reply' : 'Sign in to reply'}</button></div>
         </form>
         <div className="thread-comment-list">
           {comments.map((comment) => (

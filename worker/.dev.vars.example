@@ -1,2 +1,7 @@
 HERMES_BRIDGE_URL=http://127.0.0.1:8789
 HERMES_BRIDGE_TOKEN=replace-with-a-long-random-local-token
+BETTER_AUTH_SECRET=replace-with-at-least-32-random-characters
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+TWITTER_CLIENT_ID=
+TWITTER_CLIENT_SECRET=

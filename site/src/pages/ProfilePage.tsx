@@ -4,7 +4,7 @@ import DiscoveryFeed from '../components/DiscoveryFeed'
 import { useAuth } from '../context/AuthContext'
 import { hardwareProfiles } from '../data/discovery'
 import { loadProfile, setFollowing, type PublicProfile } from '../lib/community'
-import { supabaseConfigured } from '../lib/supabase'
+import { backendConfigured } from '../lib/backend'
 
 const demoProfile: PublicProfile = {
   id: 'demo-eric',
@@ -23,15 +23,16 @@ const demoProfile: PublicProfile = {
 export default function ProfilePage() {
   const { handle = 'eric' } = useParams()
   const { configured, user, profile: viewerProfile, signInWithGitHub } = useAuth()
-  const [profile, setProfile] = useState<PublicProfile | null>(supabaseConfigured ? null : { ...demoProfile, handle })
-  const [loading, setLoading] = useState(supabaseConfigured)
+  const [profile, setProfile] = useState<PublicProfile | null>(backendConfigured ? null : { ...demoProfile, handle })
+  const [loading, setLoading] = useState(backendConfigured)
   const [notice, setNotice] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!supabaseConfigured) return
+    if (!backendConfigured) return
     setLoading(true)
     try {
-      setProfile(await loadProfile(handle, user?.id))
+      const loaded = await loadProfile(handle, user?.id)
+      setProfile(loaded || (handle.toLowerCase() === 'eric' ? { ...demoProfile, handle } : null))
       setNotice(null)
     } catch (cause) {
       setNotice(cause instanceof Error ? cause.message : 'This builder profile could not be loaded.')
@@ -79,7 +80,7 @@ export default function ProfilePage() {
           <div className="revamp-profile-name">
             <div><h1>{profile.displayName}</h1><span>@{profile.handle}</span></div>
             {isViewer
-              ? <button type="button" className="btn btn-secondary">Edit profile</button>
+              ? <Link to="/settings" className="btn btn-secondary">Edit profile</Link>
               : <button type="button" className={`btn ${profile.viewerFollows ? 'btn-secondary' : 'btn-primary'}`} onClick={() => void toggleFollow()}>{profile.viewerFollows ? 'Following' : 'Follow'}</button>}
           </div>
           <p>{profile.bio || 'Building and benchmarking local AI in public.'}</p>

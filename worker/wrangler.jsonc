@@ -1,0 +1,40 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bench-loop-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-16",
+  "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    { "pattern": "api.bench-loop.com", "custom_domain": true }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bench-loop",
+      "database_id": "62cbcfca-fe7b-416c-94e3-860e732cf4ca",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "ALLOWED_ORIGINS": "*",
+    "SITE_ORIGINS": "https://bench-loop.com,https://www.bench-loop.com,http://127.0.0.1:5181,http://localhost:5181",
+    "BETTER_AUTH_URL": "https://api.bench-loop.com"
+  },
+  "ratelimits": [
+    {
+      "name": "ASK_RATE_LIMITER",
+      "namespace_id": "3827001",
+      "simple": { "limit": 6, "period": 60 }
+    },
+    {
+      "name": "PAIR_RATE_LIMITER",
+      "namespace_id": "3827002",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+}

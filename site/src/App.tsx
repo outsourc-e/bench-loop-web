@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Route, Routes } from 'react-router-dom'
 import LoopLogo from './components/LoopLogo'
 import AuthButton from './components/AuthButton'
+import AccountPage from './pages/AccountPage'
 import DocsPage from './pages/DocsPage'
 import ConnectPage from './pages/ConnectPage'
 import DownloadPage from './pages/DownloadPage'
@@ -86,6 +87,7 @@ export default function App() {
           <Route path="/recipes/:recipeId" element={<RecipePage />} />
           <Route path="/posts/:postId" element={<PostPage />} />
           <Route path="/connect" element={<ConnectPage />} />
+          <Route path="/settings" element={<AccountPage />} />
           <Route path="/u/:handle" element={<ProfilePage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/models/:modelName" element={<ModelDetailPage />} />

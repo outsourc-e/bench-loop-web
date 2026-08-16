@@ -1,5 +1,3 @@
-import type { Env } from "./env"
-
 const MAX_QUERY_LENGTH = 800
 const MAX_HISTORY_MESSAGES = 8
 const MAX_HISTORY_MESSAGE_LENGTH = 4_000

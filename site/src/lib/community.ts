@@ -1,27 +1,62 @@
 import { feedItems, type FeedItem, type FeedKind } from '../data/discovery'
-import { supabase } from './supabase'
-
-type ProfileRow = {
-  handle: string
-  display_name: string
-  avatar_url: string | null
-}
+import { apiFetch, BackendError } from './backend'
 
 type PostRow = {
   id: number
   title: string | null
   body: string
-  run_id: number | null
+  run_id: string | null
   recipe_id: number | null
   created_at: string
-  author: ProfileRow | ProfileRow[] | null
+  handle: string
+  display_name: string
+  avatar_url: string | null
+  reaction_count: number
+  comment_count: number
+  viewer_reacted: number
+}
+
+type CommentRow = {
+  id: number
+  body: string
+  created_at: string
+  handle: string
+  display_name: string
+  avatar_url: string | null
+}
+
+type ProfileRow = {
+  id: string
+  handle: string
+  display_name: string
+  bio: string
+  avatar_url: string | null
+  github_url: string | null
+  x_url: string | null
+  website_url: string | null
+  run_count: number
+  recipe_count: number
+  rig_count: number
+  follower_count: number
+  viewer_follows: number
+}
+
+type RigRow = {
+  id: number
+  name: string
+  hardware_label: string
+  last_seen_at: string | null
 }
 
 export type CommentItem = {
   id: number
   body: string
   createdAt: string
-  author: ProfileRow
+  author: {
+    handle: string
+    display_name: string
+    avatar_url: string | null
+  }
 }
 
 export type PublicProfile = {
@@ -36,10 +71,6 @@ export type PublicProfile = {
   stats: { runs: number; recipes: number; rigs: number; followers: number }
   rigs: Array<{ id: number; name: string; hardwareLabel: string; status: string }>
   viewerFollows: boolean
-}
-
-function one<T>(value: T | T[] | null): T | null {
-  return Array.isArray(value) ? value[0] ?? null : value
 }
 
 function relativeTime(dateValue: string) {
@@ -68,70 +99,7 @@ function tagsFrom(post: PostRow) {
   ].filter((tag): tag is string => Boolean(tag))
 }
 
-export async function loadFeed(limit = 20, viewerId?: string): Promise<FeedItem[]> {
-  if (!supabase) return feedItems.slice(0, limit)
-
-  const { data, error } = await supabase
-    .from('posts')
-    .select('id, title, body, run_id, recipe_id, created_at, author:profiles!posts_author_id_fkey(handle, display_name, avatar_url)')
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw error
-  const posts = (data || []) as unknown as PostRow[]
-  if (!posts.length) return []
-
-  const ids = posts.map((post) => post.id)
-  const [{ data: reactions }, { data: comments }] = await Promise.all([
-    supabase.from('reactions').select('post_id, user_id, kind').in('post_id', ids),
-    supabase.from('comments').select('post_id').in('post_id', ids),
-  ])
-
-  return posts.map((post) => {
-    const author = one(post.author)
-    const kind = postKind(post)
-    const postReactions = reactions?.filter((reaction) => reaction.post_id === post.id) || []
-    const commentCount = comments?.filter((comment) => comment.post_id === post.id).length || 0
-    return {
-      id: `post-${post.id}`,
-      postId: post.id,
-      kind,
-      eyebrow: kind === 'run' ? 'Published run' : kind === 'recipe' ? 'Shared recipe' : 'Builder post',
-      title: post.title || post.body.slice(0, 96),
-      summary: post.body,
-      author: `@${author?.handle || 'builder'}`,
-      authorHandle: author?.handle || 'builder',
-      avatarUrl: author?.avatar_url || null,
-      time: relativeTime(post.created_at),
-      tags: tagsFrom(post),
-      href: `/posts/${post.id}`,
-      action: 'Open discussion',
-      reactionCount: postReactions.length,
-      commentCount,
-      viewerReacted: Boolean(viewerId && postReactions.some((reaction) => reaction.user_id === viewerId && reaction.kind === 'upvote')),
-    }
-  })
-}
-
-export async function loadPost(postId: number, viewerId?: string): Promise<FeedItem | null> {
-  if (!supabase) return feedItems.find((item) => item.postId === postId) || null
-  const { data, error } = await supabase
-    .from('posts')
-    .select('id, title, body, run_id, recipe_id, created_at, author:profiles!posts_author_id_fkey(handle, display_name, avatar_url)')
-    .eq('id', postId)
-    .maybeSingle()
-  if (error) throw error
-  if (!data) return null
-
-  const post = data as unknown as PostRow
-  const [{ count: reactionCount }, { count: commentCount }, { data: viewerReaction }] = await Promise.all([
-    supabase.from('reactions').select('*', { count: 'exact', head: true }).eq('post_id', postId),
-    supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', postId),
-    viewerId
-      ? supabase.from('reactions').select('post_id').eq('post_id', postId).eq('user_id', viewerId).eq('kind', 'upvote').maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ])
-  const author = one(post.author)
+function feedItem(post: PostRow): FeedItem {
   const kind = postKind(post)
   return {
     id: `post-${post.id}`,
@@ -140,111 +108,104 @@ export async function loadPost(postId: number, viewerId?: string): Promise<FeedI
     eyebrow: kind === 'run' ? 'Published run' : kind === 'recipe' ? 'Shared recipe' : 'Builder post',
     title: post.title || post.body.slice(0, 96),
     summary: post.body,
-    author: `@${author?.handle || 'builder'}`,
-    authorHandle: author?.handle || 'builder',
-    avatarUrl: author?.avatar_url || null,
+    author: `@${post.handle || 'builder'}`,
+    authorHandle: post.handle || 'builder',
+    avatarUrl: post.avatar_url,
     time: relativeTime(post.created_at),
     tags: tagsFrom(post),
     href: `/posts/${post.id}`,
     action: 'Open discussion',
-    reactionCount: reactionCount || 0,
-    commentCount: commentCount || 0,
-    viewerReacted: Boolean(viewerReaction),
+    reactionCount: Number(post.reaction_count || 0),
+    commentCount: Number(post.comment_count || 0),
+    viewerReacted: Number(post.viewer_reacted || 0) === 1,
   }
 }
 
-export async function publishPost(authorId: string, body: string, title?: string) {
-  if (!supabase) throw new Error('Publishing requires the live BenchLoop backend.')
-  const { error } = await supabase.from('posts').insert({
-    author_id: authorId,
-    title: title?.trim() || null,
-    body: body.trim(),
-    visibility: 'public',
-  })
-  if (error) throw error
+export async function loadFeed(limit = 20, _viewerId?: string): Promise<FeedItem[]> {
+  const data = await apiFetch<{ posts: PostRow[] }>(`/community/feed?limit=${Math.max(1, Math.min(50, limit))}`)
+  return data.posts.length ? data.posts.map(feedItem) : feedItems.slice(0, limit)
 }
 
-export async function setUpvote(postId: number, userId: string, active: boolean) {
-  if (!supabase) throw new Error('Reactions require the live BenchLoop backend.')
-  const query = active
-    ? supabase.from('reactions').insert({ post_id: postId, user_id: userId, kind: 'upvote' })
-    : supabase.from('reactions').delete().eq('post_id', postId).eq('user_id', userId).eq('kind', 'upvote')
-  const { error } = await query
-  if (error) throw error
+export async function loadPost(postId: number, _viewerId?: string): Promise<FeedItem | null> {
+  try {
+    const data = await apiFetch<{ post: PostRow }>(`/community/posts/${postId}`)
+    return feedItem(data.post)
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 404) return feedItems.find((item) => item.postId === postId) || null
+    throw error
+  }
+}
+
+export async function publishPost(_authorId: string, body: string, title?: string) {
+  await apiFetch('/community/posts', {
+    method: 'POST',
+    body: JSON.stringify({ body: body.trim(), title: title?.trim() || null }),
+  })
+}
+
+export async function setUpvote(postId: number, _userId: string, active: boolean) {
+  await apiFetch(`/community/posts/${postId}/upvote`, {
+    method: 'PUT',
+    body: JSON.stringify({ active }),
+  })
 }
 
 export async function loadComments(postId: number): Promise<CommentItem[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from('comments')
-    .select('id, body, created_at, author:profiles!comments_author_id_fkey(handle, display_name, avatar_url)')
-    .eq('post_id', postId)
-    .order('created_at', { ascending: true })
-  if (error) throw error
-  return ((data || []) as unknown as Array<{ id: number; body: string; created_at: string; author: ProfileRow | ProfileRow[] }>).map((comment) => ({
+  const data = await apiFetch<{ comments: CommentRow[] }>(`/community/posts/${postId}/comments`)
+  return data.comments.map((comment) => ({
     id: comment.id,
     body: comment.body,
     createdAt: relativeTime(comment.created_at),
-    author: one(comment.author) || { handle: 'builder', display_name: 'Builder', avatar_url: null },
+    author: {
+      handle: comment.handle,
+      display_name: comment.display_name,
+      avatar_url: comment.avatar_url,
+    },
   }))
 }
 
-export async function publishComment(postId: number, authorId: string, body: string) {
-  if (!supabase) throw new Error('Comments require the live BenchLoop backend.')
-  const { error } = await supabase.from('comments').insert({ post_id: postId, author_id: authorId, body: body.trim() })
-  if (error) throw error
+export async function publishComment(postId: number, _authorId: string, body: string) {
+  await apiFetch(`/community/posts/${postId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body: body.trim() }),
+  })
 }
 
-export async function loadProfile(handle: string, viewerId?: string): Promise<PublicProfile | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, handle, display_name, bio, avatar_url, github_url, x_url, website_url')
-    .ilike('handle', handle)
-    .maybeSingle()
-  if (error) throw error
-  if (!data) return null
-
-  const [runs, recipes, rigs, followers, viewerFollow] = await Promise.all([
-    supabase.from('runs').select('*', { count: 'exact', head: true }).eq('owner_id', data.id),
-    supabase.from('recipes').select('*', { count: 'exact', head: true }).eq('owner_id', data.id),
-    supabase.from('rigs').select('id, name, hardware_label, last_seen_at').eq('owner_id', data.id).order('created_at', { ascending: false }),
-    supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', data.id),
-    viewerId
-      ? supabase.from('follows').select('following_id').eq('follower_id', viewerId).eq('following_id', data.id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ])
-
-  return {
-    id: data.id,
-    handle: data.handle,
-    displayName: data.display_name,
-    bio: data.bio,
-    avatarUrl: data.avatar_url,
-    githubUrl: data.github_url,
-    xUrl: data.x_url,
-    websiteUrl: data.website_url,
-    stats: {
-      runs: runs.count || 0,
-      recipes: recipes.count || 0,
-      rigs: rigs.data?.length || 0,
-      followers: followers.count || 0,
-    },
-    rigs: (rigs.data || []).map((rig) => ({
-      id: rig.id,
-      name: rig.name,
-      hardwareLabel: rig.hardware_label,
-      status: rig.last_seen_at ? 'connected' : 'saved',
-    })),
-    viewerFollows: Boolean(viewerFollow.data),
+export async function loadProfile(handle: string, _viewerId?: string): Promise<PublicProfile | null> {
+  try {
+    const data = await apiFetch<{ profile: ProfileRow; rigs: RigRow[] }>(`/community/profiles/${encodeURIComponent(handle)}`)
+    return {
+      id: data.profile.id,
+      handle: data.profile.handle,
+      displayName: data.profile.display_name,
+      bio: data.profile.bio,
+      avatarUrl: data.profile.avatar_url,
+      githubUrl: data.profile.github_url,
+      xUrl: data.profile.x_url,
+      websiteUrl: data.profile.website_url,
+      stats: {
+        runs: Number(data.profile.run_count || 0),
+        recipes: Number(data.profile.recipe_count || 0),
+        rigs: Number(data.profile.rig_count || 0),
+        followers: Number(data.profile.follower_count || 0),
+      },
+      rigs: data.rigs.map((rig) => ({
+        id: rig.id,
+        name: rig.name,
+        hardwareLabel: rig.hardware_label,
+        status: rig.last_seen_at ? 'connected' : 'saved',
+      })),
+      viewerFollows: Number(data.profile.viewer_follows || 0) === 1,
+    }
+  } catch (error) {
+    if (error instanceof BackendError && error.status === 404) return null
+    throw error
   }
 }
 
-export async function setFollowing(followerId: string, followingId: string, active: boolean) {
-  if (!supabase) throw new Error('Following requires the live BenchLoop backend.')
-  const query = active
-    ? supabase.from('follows').insert({ follower_id: followerId, following_id: followingId })
-    : supabase.from('follows').delete().eq('follower_id', followerId).eq('following_id', followingId)
-  const { error } = await query
-  if (error) throw error
+export async function setFollowing(_followerId: string, followingId: string, active: boolean) {
+  await apiFetch(`/community/profiles/${encodeURIComponent(followingId)}/follow`, {
+    method: 'PUT',
+    body: JSON.stringify({ active }),
+  })
 }
