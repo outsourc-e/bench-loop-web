@@ -1,15 +1,14 @@
 /// <reference types="@cloudflare/workers-types" />
 
+import { handleAsk } from "./ask"
+import type { Env } from "./env"
+
 // BenchLoop public submit API.
 // POST /submit       — accept a run.json payload, validate, store
 // GET  /leaderboard  — return best-per-(model,harness) sorted by overall_score
 // GET  /runs/:id     — return a specific run
+// POST /ask          — answer from BenchLoop evidence + live research
 // GET  /health       — basic health probe
-
-interface Env {
-  DB: D1Database
-  ALLOWED_ORIGINS: string
-}
 
 const corsHeaders = (origin: string | null, allowed: string) => {
   const allow =
@@ -17,7 +16,7 @@ const corsHeaders = (origin: string | null, allowed: string) => {
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-BenchLoop-Client",
     "Access-Control-Max-Age": "86400",
   }
 }
@@ -104,7 +103,7 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
     modelId = modelId.split("/").pop() || modelId
   }
 
-  const runId = (p as any).run_id || `${p.machine!.machine_id}-${Date.parse(p.timestamp!)}`
+  const runId = p.run_id || `${p.machine!.machine_id}-${Date.parse(p.timestamp!)}`
   const id = `${p.machine!.machine_id}:${runId}`
 
   const submitterIp = request.headers.get("CF-Connecting-IP") || ""
@@ -308,7 +307,7 @@ async function handleRun(id: string, env: Env): Promise<Response> {
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
     const origin = request.headers.get("Origin")
     const cors = corsHeaders(origin, env.ALLOWED_ORIGINS)
@@ -319,11 +318,13 @@ export default {
     try {
       if (url.pathname === "/health") resp = json({ ok: true, ts: new Date().toISOString() })
       else if (url.pathname === "/submit" && request.method === "POST") resp = await handleSubmit(request, env)
+      else if (url.pathname === "/ask" && request.method === "POST") resp = await handleAsk(request, env, ctx)
       else if (url.pathname === "/leaderboard") resp = await handleLeaderboard(request, env)
       else if (url.pathname.startsWith("/runs/")) resp = await handleRun(decodeURIComponent(url.pathname.slice(6)), env)
-      else resp = json({ error: "not found", routes: ["/health", "POST /submit", "/leaderboard", "/runs/:id"] }, 404)
-    } catch (err: any) {
-      resp = json({ error: err.message || "internal error" }, 500)
+      else resp = json({ error: "not found", routes: ["/health", "POST /submit", "POST /ask", "/leaderboard", "/runs/:id"] }, 404)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "internal error"
+      resp = json({ error: message }, 500)
     }
 
     Object.entries(cors).forEach(([k, v]) => resp.headers.set(k, v as string))

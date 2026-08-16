@@ -1,6 +1,7 @@
 name = "bench-loop-api"
 main = "src/index.ts"
-compatibility_date = "2026-05-01"
+compatibility_date = "2026-08-16"
+compatibility_flags = ["nodejs_compat"]
 
 # api.bench-loop.com — public submit + leaderboard endpoint
 # Routes are added after the bench-loop.com zone activates in CF.
@@ -19,3 +20,18 @@ ENVIRONMENT = "production"
 # Comma-separated list of trusted submit sources. Empty = anyone can submit.
 # We rate-limit + dedupe by run_id so abuse is bounded.
 ALLOWED_ORIGINS = "*"
+
+# Ask Loop is deliberately tighter than the public leaderboard and submission
+# endpoints. This binding is a fast, permissive abuse guard; authenticated
+# account quotas can replace the anonymous client/IP key after auth ships.
+[[ratelimits]]
+name = "ASK_RATE_LIMITER"
+namespace_id = "3827001"
+
+  [ratelimits.simple]
+  limit = 6
+  period = 60
+
+[observability]
+enabled = true
+head_sampling_rate = 1

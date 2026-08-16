@@ -1,8 +1,11 @@
+import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { Link, useSearchParams } from 'react-router-dom'
 import AskBox from '../components/AskBox'
 import BrandIcon from '../components/BrandIcon'
 import DiscoveryFeed from '../components/DiscoveryFeed'
 import { hardwareProfiles, trendItems, type FeedKind } from '../data/discovery'
+import { useAsk, type AskEvidence } from '../hooks/useAsk'
 
 type ExploreMode = 'ask' | 'feed' | 'news' | 'runs' | 'recipes' | 'builders'
 
@@ -85,49 +88,59 @@ export default function ExplorePage({ mode }: { mode: ExploreMode }) {
 }
 
 function AnswerPage({ query }: { query: string }) {
+  const ask = useAsk(query)
+  const [shared, setShared] = useState(false)
+
+  const share = async () => {
+    const url = window.location.href
+    try {
+      if (navigator.share) await navigator.share({ title: `Ask Loop: ${query}`, url })
+      else await navigator.clipboard.writeText(url)
+      setShared(true)
+      window.setTimeout(() => setShared(false), 1800)
+    } catch {
+      // Dismissing the native share sheet needs no error state.
+    }
+  }
+
   return (
     <div className="revamp-answer-page">
       <AskBox initialValue={query} compact />
       <div className="revamp-answer-layout">
         <article className="revamp-answer card-premium">
-          <div className="revamp-answer-meta">
-            <span className="live-dot" /> Answered from 12 verified runs, 4 recipes, and 5 primary sources
-          </div>
           <h1>{query}</h1>
-          <div className="revamp-answer-copy">
-            <p>
-              <strong>Use two different winners.</strong> Your RTX 4090 is the throughput machine; your M2 Max is the high-memory, low-friction daily driver. System RAM and unified memory expand what fits, but they do not replace bandwidth or GPU-native kernels.
-            </p>
-            <div className="revamp-recommendation">
-              <div className="revamp-rec-rank">01</div>
-              <div>
-                <span>RTX 4090 · fastest verified setup</span>
-                <h3>UD-Q4_K_XL + llama.cpp CUDA + native MTP</h3>
-                <p>Full GPU offload, Flash Attention, quantized KV, one sequence, MTP depth 2–4. Your steady run reached 79.3 tok/s and coding prompts peaked near 97 tok/s.</p>
-                <div className="revamp-rec-metrics"><b>79.3 tok/s steady</b><b>93.8 coding</b><b>~22.8 GB VRAM</b></div>
-                <Link to="/recipes/qwen38-4090-mtp4" className="btn btn-primary">Open exact recipe</Link>
+          {ask.status === 'loading' && <AnswerLoading />}
+          {ask.status === 'error' && (
+            <div className="revamp-answer-error">
+              <span>Ask Loop hit a snag</span>
+              <p>{ask.error}</p>
+              <button type="button" className="btn btn-primary" onClick={ask.retry}>Try again</button>
+            </div>
+          )}
+          {ask.status === 'success' && (
+            <>
+              <div className="revamp-answer-meta">
+                <span className={ask.data.research.live ? 'live-dot' : 'offline-dot'} />
+                {ask.data.research.live ? 'Live web + X research' : 'BenchLoop evidence mode'}
+                <i>·</i> {ask.data.evidence.length} matching runs
+                <i>·</i> {ask.data.citations.length} sources
+                {ask.data.research.cache_hit && <><i>·</i> cached</>}
               </div>
-            </div>
-            <div className="revamp-recommendation">
-              <div className="revamp-rec-rank">02</div>
-              <div>
-                <span>M2 Max 96 GB · best daily driver</span>
-                <h3>MLX oQ4e + native two-token MTP path</h3>
-                <p>Your optimized MLX run held 26.3 tok/s with a 76.5 quality score and a perfect agent-suite score. Keep BF16 as the reference, not the daily runtime.</p>
-                <div className="revamp-rec-metrics"><b>26.3 tok/s</b><b>76.5 quality</b><b>100 agent</b></div>
-                <Link to="/runs" className="btn btn-secondary">Inspect Mac run</Link>
+              {ask.data.notice && <div className="revamp-answer-notice">{ask.data.notice}</div>}
+              <div className="revamp-answer-copy revamp-answer-markdown">
+                <ReactMarkdown
+                  components={{
+                    a: ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}</a>,
+                  }}
+                >{ask.data.answer}</ReactMarkdown>
               </div>
-            </div>
-            <div className="revamp-caveat">
-              <strong>What to test next</strong>
-              <p>Run the same prompt corpus at 4K, 32K, and 128K; report fresh-prompt decode, acceptance rate, TTFT, peak memory, and quality together. A speed claim without those fields should not enter the verified leaderboard.</p>
-            </div>
-          </div>
-          <div className="revamp-answer-actions">
-            <button type="button">↻ Test both on my rigs</button>
-            <button type="button">＋ Save comparison</button>
-            <button type="button">↗ Share answer</button>
-          </div>
+              <div className="revamp-answer-actions">
+                <Link to="/download">↓ Run the benchmark</Link>
+                <Link to="/runs">⌁ Explore all runs</Link>
+                <button type="button" onClick={share}>{shared ? '✓ Link copied' : '↗ Share answer'}</button>
+              </div>
+            </>
+          )}
         </article>
 
         <aside className="revamp-rail">
@@ -139,17 +152,62 @@ function AnswerPage({ query }: { query: string }) {
               ))}
             </div>
           </div>
-          <div className="revamp-rail-card card">
-            <div className="revamp-rail-title"><span>Evidence</span><small>21 items</small></div>
-            <ol className="revamp-evidence">
-              <li><span>Run</span> Qwen3.8 dual-rig benchmark <b>verified</b></li>
-              <li><span>Recipe</span> llama.cpp native MTP flags <b>reproduced</b></li>
-              <li><span>Model</span> Qwen3.8-27B model card <b>primary</b></li>
-              <li><span>Runtime</span> MLX MTP implementation <b>primary</b></li>
-            </ol>
-          </div>
+          {ask.status === 'success' && <EvidenceRail evidence={ask.data.evidence} citations={ask.data.citations} />}
         </aside>
       </div>
     </div>
+  )
+}
+
+function AnswerLoading() {
+  return (
+    <div className="revamp-answer-loading" aria-live="polite">
+      <div className="revamp-answer-meta"><span className="live-dot" /> Searching BenchLoop, the web, and X…</div>
+      <div className="revamp-loading-line wide" />
+      <div className="revamp-loading-line" />
+      <div className="revamp-loading-line medium" />
+      <div className="revamp-loading-block" />
+      <p>Matching measured runs first, then checking current runtime and model sources.</p>
+    </div>
+  )
+}
+
+function EvidenceRail({ evidence, citations }: {
+  evidence: AskEvidence[]
+  citations: Array<{ url: string; title: string }>
+}) {
+  return (
+    <>
+      <div className="revamp-rail-card card">
+        <div className="revamp-rail-title"><span>Matched runs</span><small>{evidence.length}</small></div>
+        {evidence.length === 0 ? <p className="revamp-rail-empty">No exact benchmark matches yet.</p> : (
+          <ol className="revamp-evidence">
+            {evidence.slice(0, 6).map((run) => (
+              <li key={run.id}>
+                <a href={run.source_url} target="_blank" rel="noreferrer">
+                  <span>Run</span> {run.model}
+                  <b>{run.hardware}{run.generation_tok_per_sec == null ? '' : ` · ${run.generation_tok_per_sec.toFixed(1)} tok/s`}</b>
+                </a>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <div className="revamp-rail-card card">
+        <div className="revamp-rail-title"><span>Live sources</span><small>{citations.length}</small></div>
+        {citations.length === 0 ? <p className="revamp-rail-empty">No external sources used.</p> : (
+          <ol className="revamp-evidence revamp-citations">
+            {citations.slice(0, 8).map((citation, index) => (
+              <li key={`${citation.url}-${index}`}>
+                <a href={citation.url} target="_blank" rel="noreferrer">
+                  <span>{String(index + 1).padStart(2, '0')}</span> {citation.title}
+                  <b>{new URL(citation.url).hostname.replace(/^www\./, '')}</b>
+                </a>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </>
   )
 }

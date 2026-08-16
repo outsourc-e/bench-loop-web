@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const starterQueries = [
@@ -15,6 +15,8 @@ type AskBoxProps = {
 export default function AskBox({ initialValue = '', compact = false }: AskBoxProps) {
   const [query, setQuery] = useState(initialValue)
   const navigate = useNavigate()
+
+  useEffect(() => setQuery(initialValue), [initialValue])
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
