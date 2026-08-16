@@ -88,7 +88,7 @@ export default function LandingPage() {
             </div>
             <Link to="/explore">View all →</Link>
           </div>
-          <DiscoveryFeed limit={4} />
+          <DiscoveryFeed limit={4} composer />
         </div>
 
         <aside className="revamp-rail">

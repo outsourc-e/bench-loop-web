@@ -55,7 +55,7 @@ export default function ExplorePage({ mode }: { mode: ExploreMode }) {
         <AskBox compact />
       </div>
       <div className="revamp-directory-grid">
-        <DiscoveryFeed filter={copy.filter} />
+        <DiscoveryFeed filter={copy.filter} composer={mode === 'feed'} />
         <aside className="revamp-rail">
           <div className="revamp-rail-card card">
             <div className="revamp-rail-title"><span>Active filters</span></div>

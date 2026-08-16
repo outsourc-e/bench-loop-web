@@ -16,6 +16,12 @@ export type FeedItem = {
   action: string
   hardware?: string
   brands?: BrandName[]
+  postId?: number
+  authorHandle?: string
+  avatarUrl?: string | null
+  reactionCount?: number
+  commentCount?: number
+  viewerReacted?: boolean
 }
 
 export const hardwareProfiles = [

@@ -1,73 +1,60 @@
 # Deploying bench-loop.com
 
-This site is fully static. Anywhere that serves static files works.
+The React application is static at the edge; community data, accounts, RLS, and Realtime are provided by Supabase.
 
-## TL;DR
+## Required public environment
 
-```bash
-# 1. Export latest local runs into the public leaderboard JSON
-node scripts/export-leaderboard.mjs
-
-# 2. Build the site
-npm run build
-
-# 3. Deploy the dist/ folder to your static host
+```text
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+VITE_SITE_URL=https://bench-loop.com
 ```
 
-## Recommended hosts
+These are browser-safe values. Never expose a Supabase secret or `service_role` key through Vite.
 
-### Option A — Cloudflare Pages (recommended)
+## Backend setup
 
-- Push this repo to GitHub.
-- In Cloudflare dashboard: **Workers & Pages → Create → Pages → Connect to Git**.
-- Pick the repo, set the **root** to `bench-loop-web/site`.
-- **Build command:** `npm run build`
-- **Build output:** `dist`
-- **Environment variables:** none needed.
-- Once green, add the custom domain `bench-loop.com` (and `www.bench-loop.com`) under the project's **Custom domains** tab. Cloudflare handles DNS + TLS automatically.
+1. Create a dedicated Supabase project.
+2. Apply the versioned migrations in `../supabase/migrations/`.
+3. In Supabase Auth, enable GitHub and enter the GitHub OAuth client ID and secret.
+4. In the GitHub OAuth app, set the callback URL shown by the Supabase GitHub provider screen.
+5. Add `https://bench-loop.com/**`, `https://www.bench-loop.com/**`, and the local development URL to the Supabase redirect allow list.
+6. Run the Supabase security and performance advisors and resolve all production findings.
 
-### Option B — Vercel
+The application uses RLS-protected browser queries. Runner tokens will be issued by a separate server-side pairing flow; they must never be generated or stored in frontend code.
 
-- `vercel link` inside `bench-loop-web/site/`
-- Framework preset: **Vite**
+## Build
+
+```bash
+npm ci
+npm run check
+```
+
+Deploy the generated `dist/` directory. The existing `vercel.json` includes SPA route fallback behavior.
+
+## Vercel
+
+- Root directory: `site`
+- Framework preset: Vite
 - Build command: `npm run build`
 - Output directory: `dist`
-- Add `bench-loop.com` to **Domains**, point the apex `A` record at Vercel's IPs and `www` CNAME at `cname.vercel-dns.com`.
+- Add the three public environment variables above to Preview and Production.
+- Attach `bench-loop.com` and `www.bench-loop.com`.
 
-### Option C — Fly.io static site
+## Cloudflare Pages
 
-```bash
-flyctl launch --no-deploy
-# pick a name, no DB, no http checks
-flyctl deploy
-```
-Then add `bench-loop.com` via `flyctl certs create bench-loop.com`.
+- Root directory: `site`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Add the three public environment variables above.
+- Configure SPA fallback and attach the custom domains.
 
-## DNS records
+## Release check
 
-Whichever host you pick, you'll need:
-
-```
-bench-loop.com.        A      <host IPs>
-www.bench-loop.com.    CNAME  <host CNAME target>
-```
-
-For Cloudflare Pages the apex can be a flattened `CNAME` to `<project>.pages.dev`.
-
-## CI: keep the leaderboard fresh
-
-Add a GitHub Action like `.github/workflows/refresh-leaderboard.yml` that:
-
-1. Pulls the latest `~/.bench-loop/runs/` artifact (or pulls submitted PRs).
-2. Runs `node scripts/export-leaderboard.mjs`.
-3. Commits the regenerated `public/data/leaderboard.json`.
-
-Cloudflare Pages will redeploy on every commit.
-
-## Image assets to add before launch
-
-- `public/og-image.png` — 1200×630 social card (Open Graph)
-- `public/favicon.ico` — already have favicon.svg, add ICO for legacy
-- `public/apple-touch-icon.png` — 180×180
-
-The current `<head>` already references all three; they'll just 404 quietly until they exist.
+- GitHub login returns to the same origin.
+- A new user receives a profile row.
+- Public feeds load while signed out.
+- Private rows remain invisible to other users.
+- Post, upvote, comment, follow, and sign-out work.
+- `/posts/:id`, `/u/:handle`, and other deep links survive a hard refresh.
+- No secret keys appear in built assets or deployment logs.

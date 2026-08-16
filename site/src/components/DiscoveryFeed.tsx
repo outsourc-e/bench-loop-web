@@ -1,26 +1,75 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { feedItems, type FeedItem, type FeedKind } from '../data/discovery'
+import { type FeedItem, type FeedKind } from '../data/discovery'
+import { useAuth } from '../context/AuthContext'
+import { useDiscoveryFeed } from '../hooks/useDiscoveryFeed'
+import { setUpvote } from '../lib/community'
 import BrandIcon from './BrandIcon'
+import PostComposer from './PostComposer'
 
 type DiscoveryFeedProps = {
   filter?: FeedKind | 'all'
   limit?: number
+  composer?: boolean
+  authorHandle?: string
 }
 
-export default function DiscoveryFeed({ filter = 'all', limit }: DiscoveryFeedProps) {
-  const visible = feedItems
-    .filter((item) => filter === 'all' || item.kind === filter)
+export default function DiscoveryFeed({ filter = 'all', limit, composer = false, authorHandle }: DiscoveryFeedProps) {
+  const { items, loading, error, refresh, isLive } = useDiscoveryFeed(limit || 20)
+  const visible = items
+    .filter((item) => (filter === 'all' || item.kind === filter) && (!authorHandle || item.authorHandle === authorHandle || item.author === `@${authorHandle}`))
     .slice(0, limit)
 
   return (
     <div className="revamp-feed">
-      {visible.map((item) => <FeedCard key={item.id} item={item} />)}
+      {composer && <PostComposer onPublished={refresh} />}
+      {error && <div className="feed-mode-note" role="status">Live feed unavailable; showing the polished demo dataset.</div>}
+      {isLive && <div className="feed-mode-note is-live"><span className="live-dot" /> Live community data</div>}
+      {loading && <div className="feed-skeleton card" aria-label="Loading community posts"><i /><i /><i /></div>}
+      {!loading && visible.length === 0 && <div className="revamp-empty card"><h3>The loop is quiet—for now.</h3><p>Be the first builder to publish a result or field note.</p></div>}
+      {visible.map((item) => <FeedCard key={item.id} item={item} onChanged={refresh} />)}
     </div>
   )
 }
 
-function FeedCard({ item }: { item: FeedItem }) {
+export function FeedCard({ item, onChanged }: { item: FeedItem; onChanged?: () => Promise<void> }) {
+  const { configured, user, signInWithGitHub } = useAuth()
+  const [reacted, setReacted] = useState(Boolean(item.viewerReacted))
+  const [reactionCount, setReactionCount] = useState(item.reactionCount || 0)
+  const [notice, setNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    setReacted(Boolean(item.viewerReacted))
+    setReactionCount(item.reactionCount || 0)
+  }, [item.reactionCount, item.viewerReacted])
+
+  const toggleUpvote = async () => {
+    if (!item.postId) {
+      setNotice('This preview becomes interactive when the community backend is live.')
+      return
+    }
+    if (!user) {
+      if (!configured) {
+        setNotice('Sign-in and reactions turn on with the live backend.')
+        return
+      }
+      await signInWithGitHub()
+      return
+    }
+
+    const next = !reacted
+    setReacted(next)
+    setReactionCount((count) => Math.max(0, count + (next ? 1 : -1)))
+    try {
+      await setUpvote(item.postId, user.id, next)
+      await onChanged?.()
+    } catch (cause) {
+      setReacted(!next)
+      setReactionCount((count) => Math.max(0, count + (next ? -1 : 1)))
+      setNotice(cause instanceof Error ? cause.message : 'Reaction could not be saved.')
+    }
+  }
+
   return (
     <article className={`revamp-feed-card card feed-${item.kind}`}>
       <span className="revamp-feed-accent" aria-hidden="true" />
@@ -61,11 +110,16 @@ function FeedCard({ item }: { item: FeedItem }) {
 
       <div className="revamp-feed-foot">
         <div>
-          <Link to={item.author === '@eric' ? '/u/eric' : '/builders'}>{item.author}</Link>
+          <Link to={item.authorHandle ? `/u/${item.authorHandle}` : item.author === '@eric' ? '/u/eric' : '/builders'}>{item.author}</Link>
           {item.hardware && <span> · {item.hardware}</span>}
         </div>
-        <Link to={item.href} className="revamp-feed-action">{item.action} <span>→</span></Link>
+        <div className="feed-social-actions">
+          <button type="button" className={reacted ? 'is-active' : ''} onClick={() => void toggleUpvote()} aria-pressed={reacted}>▲ <span>{reactionCount}</span></button>
+          <Link to={item.href}>◌ <span>{item.commentCount || 0}</span></Link>
+          <Link to={item.href} className="revamp-feed-action">{item.action} <span>→</span></Link>
+        </div>
       </div>
+      {notice && <div className="feed-inline-notice" role="status">{notice}</div>}
     </article>
   )
 }

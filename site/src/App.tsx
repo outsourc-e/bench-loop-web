@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Route, Routes } from 'react-router-dom'
 import LoopLogo from './components/LoopLogo'
+import AuthButton from './components/AuthButton'
 import DocsPage from './pages/DocsPage'
 import DownloadPage from './pages/DownloadPage'
 import ExplorePage from './pages/ExplorePage'
@@ -8,6 +9,7 @@ import LandingPage from './pages/LandingPage'
 import LeaderboardPage from './pages/LeaderboardPage'
 import ModelDetailPage from './pages/ModelDetailPage'
 import ProfilePage from './pages/ProfilePage'
+import PostPage from './pages/PostPage'
 import RecipePage from './pages/RecipePage'
 
 const navItems = [
@@ -66,7 +68,7 @@ export default function App() {
               <span>{theme === 'dark' ? 'Dark' : 'Light'}</span>
             </button>
             <Link to="/download" className="btn btn-ghost">Connect runner</Link>
-            <Link to="/u/eric" className="btn btn-primary">Sign in</Link>
+            <AuthButton />
           </div>
         </div>
       </header>
@@ -81,6 +83,7 @@ export default function App() {
           <Route path="/recipes" element={<ExplorePage mode="recipes" />} />
           <Route path="/builders" element={<ExplorePage mode="builders" />} />
           <Route path="/recipes/:recipeId" element={<RecipePage />} />
+          <Route path="/posts/:postId" element={<PostPage />} />
           <Route path="/u/:handle" element={<ProfilePage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/models/:modelName" element={<ModelDetailPage />} />
