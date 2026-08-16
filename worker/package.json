@@ -9,8 +9,8 @@
     "db:local": "wrangler d1 execute bench-loop --local --file=schema.sql"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20240924.0",
+    "@cloudflare/workers-types": "^5.20260816.1",
     "typescript": "^5.5.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.123.0"
   }
 }

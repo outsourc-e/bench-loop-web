@@ -30,6 +30,8 @@ const json = (data: unknown, status = 200, extraHeaders: Record<string, string> 
 
 // Hard caps on the leaderboard cutoff. Scoring was overhauled 2026-05-01.
 const MIN_RUN_TIMESTAMP = "2026-05-01T00:00:00Z"
+const DEFAULT_LEADERBOARD_LIMIT = 2000
+const MAX_LEADERBOARD_LIMIT = 2000
 
 const REQUIRED_FULL = ["speed", "toolcall", "dataextract", "instructfollow", "reasonmath"]
 const REQUIRED_QUALITY = ["toolcall", "dataextract", "instructfollow", "reasonmath"]
@@ -107,6 +109,16 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
 
   const submitterIp = request.headers.get("CF-Connecting-IP") || ""
   const userAgent = request.headers.get("User-Agent") || ""
+  const suitesSummary = Object.fromEntries(
+    Object.entries(p.suites!).map(([name, suite]) => [
+      name,
+      {
+        score: suite.score ?? null,
+        pass_count: suite.pass_count ?? null,
+        task_count: suite.task_count ?? null,
+      },
+    ]),
+  )
 
   await env.DB.prepare(
     `INSERT OR REPLACE INTO runs (
@@ -119,8 +131,8 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       overall_score, quality_score, speed_score, reliability_score, value_score,
       generation_tok_per_sec, ttft_ms, total_runtime_sec,
       is_full_benchmark, is_quality_full, is_agent_only,
-      suites_json, submitter_ip, user_agent
-    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?)`,
+      suites_json, suites_summary_json, submitter_ip, user_agent
+    ) VALUES (?,?,?,?,?, ?,?,?,?, ?,?, ?,?,?,?,?, ?,?,?,?, ?,?,?,?, ?,?,?,?,?, ?,?,?, ?,?,?, ?,?,?,?)`,
   )
     .bind(
       id,
@@ -159,6 +171,7 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
       isQualityFull ? 1 : 0,
       isAgentOnly ? 1 : 0,
       JSON.stringify(p.suites),
+      JSON.stringify(suitesSummary),
       submitterIp,
       userAgent,
     )
@@ -167,60 +180,118 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
   return json({ ok: true, id, is_full_benchmark: isFull, is_quality_full: isQualityFull, is_agent_only: isAgentOnly })
 }
 
-async function handleLeaderboard(env: Env): Promise<Response> {
-  // Best run per (model, harness) by overall_score.
-  const { results } = await env.DB.prepare(
-    `SELECT r.* FROM runs r
-     INNER JOIN (
-       SELECT model, harness, MAX(overall_score) AS best
-       FROM runs
-       GROUP BY model, harness
-     ) m ON r.model = m.model AND r.harness = m.harness AND r.overall_score = m.best
-     ORDER BY r.overall_score DESC`,
-  ).all()
+function boundedInteger(value: string | null, fallback: number, min: number, max: number): number {
+  if (value == null) return fallback
+  const parsed = Number.parseInt(value, 10)
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback
+}
 
-  const runs = (results as any[]).map((r) => ({
-    id: r.id,
-    run_id: r.run_id,
-    machine_id: r.machine_id,
-    timestamp: r.run_timestamp,
-    submitted_at: r.submitted_at,
-    model: r.model,
-    family: r.family,
-    parameter_count: r.parameter_count,
-    quantization: r.quantization,
-    harness: r.harness,
-    provider: r.provider,
-    machine: r.hardware_label || r.gpu || r.cpu || r.remote_host || r.machine_id,
-    hardware_label: r.hardware_label,
-    profile_name: r.profile_name,
-    profile_avatar_url: r.profile_avatar_url,
-    profile_url: r.profile_url,
-    command_used: r.command_used,
-    cpu: r.cpu,
-    gpu: r.gpu,
-    gpu_memory_gb: r.gpu_memory_gb,
-    system_memory_gb: r.system_memory_gb,
-    os: r.os,
-    is_remote: !!r.is_remote,
-    remote_host: r.remote_host,
-    endpoint: r.endpoint,
-    overall_score: r.overall_score,
-    quality_score: r.quality_score,
-    speed_score: r.speed_score,
-    reliability_score: r.reliability_score,
-    generation_tok_per_sec: r.generation_tok_per_sec,
-    ttft_ms: r.ttft_ms,
-    total_runtime_sec: r.total_runtime_sec,
-    is_full_benchmark: !!r.is_full_benchmark,
-    is_quality_full: !!r.is_quality_full,
-    is_agent_only: !!r.is_agent_only,
-    suites: JSON.parse(r.suites_json || "{}"),
-  }))
+async function handleLeaderboard(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url)
+  const limit = boundedInteger(url.searchParams.get("limit"), DEFAULT_LEADERBOARD_LIMIT, 1, MAX_LEADERBOARD_LIMIT)
+  const offset = boundedInteger(url.searchParams.get("offset"), 0, 0, 100_000)
+
+  // Return one deterministic winner per (model, harness). Raw task outputs live
+  // in suites_json and can exceed 200 KB per run, so the public list reads the
+  // compact summary column instead of materializing private/raw model output.
+  const [leaderboardResult, statsResult] = await env.DB.batch<any>([
+    env.DB.prepare(
+      `WITH ranked AS (
+         SELECT
+           id, run_id, machine_id, run_timestamp, submitted_at,
+           model, family, parameter_count, quantization, harness, provider,
+           cpu, gpu, gpu_memory_gb, system_memory_gb, os,
+           is_remote, remote_host, endpoint, hardware_label,
+           profile_name, profile_avatar_url, profile_url, command_used,
+           overall_score, quality_score, speed_score, reliability_score,
+           generation_tok_per_sec, ttft_ms, total_runtime_sec,
+           is_full_benchmark, is_quality_full, is_agent_only,
+           suites_summary_json,
+           ROW_NUMBER() OVER (
+             PARTITION BY model, harness
+             ORDER BY overall_score DESC, submitted_at DESC, id ASC
+           ) AS group_rank
+         FROM runs
+       )
+       SELECT * FROM ranked
+       WHERE group_rank = 1
+       ORDER BY overall_score DESC
+       LIMIT ? OFFSET ?`,
+    ).bind(limit, offset),
+    env.DB.prepare(
+      `SELECT
+         COUNT(*) AS total_count,
+         SUM(is_full_benchmark) AS full_count,
+         COUNT(DISTINCT model) AS unique_models,
+         COUNT(DISTINCT COALESCE(
+           NULLIF(hardware_label, ''), NULLIF(gpu, ''), NULLIF(cpu, ''),
+           NULLIF(remote_host, ''), machine_id
+         )) AS unique_machines,
+         (SELECT COUNT(*) FROM (SELECT 1 FROM runs GROUP BY model, harness)) AS ranked_count
+       FROM runs`,
+    ),
+  ])
+
+  const stats = (statsResult.results?.[0] || {}) as Record<string, number>
+  const runs = (leaderboardResult.results as any[]).map((r) => {
+    const suites = JSON.parse(r.suites_summary_json || "{}")
+    return {
+      id: r.id,
+      run_id: r.run_id,
+      machine_id: r.machine_id,
+      timestamp: r.run_timestamp,
+      submitted_at: r.submitted_at,
+      model: r.model,
+      family: r.family,
+      parameter_count: r.parameter_count,
+      quantization: r.quantization,
+      harness: r.harness,
+      provider: r.provider,
+      machine: r.hardware_label || r.gpu || r.cpu || r.remote_host || r.machine_id,
+      hardware_label: r.hardware_label,
+      profile_name: r.profile_name,
+      profile_avatar_url: r.profile_avatar_url,
+      profile_url: r.profile_url,
+      command_used: r.command_used,
+      cpu: r.cpu,
+      gpu: r.gpu,
+      gpu_memory_gb: r.gpu_memory_gb,
+      system_memory_gb: r.system_memory_gb,
+      os: r.os,
+      is_remote: !!r.is_remote,
+      remote_host: r.remote_host,
+      endpoint: r.endpoint,
+      overall_score: r.overall_score,
+      quality_score: r.quality_score,
+      speed_score: r.speed_score,
+      reliability_score: r.reliability_score,
+      generation_tok_per_sec: r.generation_tok_per_sec,
+      ttft_ms: r.ttft_ms,
+      total_runtime_sec: r.total_runtime_sec,
+      is_full_benchmark: !!r.is_full_benchmark,
+      is_quality_full: !!r.is_quality_full,
+      is_agent_only: !!r.is_agent_only,
+      agent_score: suites.agent?.score ?? null,
+      agent_pass: suites.agent?.pass_count ?? null,
+      agent_task_count: suites.agent?.task_count ?? null,
+      suites,
+    }
+  })
+
+  const totalCount = Number(stats.total_count || 0)
+  const rankedCount = Number(stats.ranked_count || 0)
 
   return json({
     generated_at: new Date().toISOString(),
     count: runs.length,
+    total_count: totalCount,
+    ranked_count: rankedCount,
+    full_count: Number(stats.full_count || 0),
+    unique_models: Number(stats.unique_models || 0),
+    unique_machines: Number(stats.unique_machines || 0),
+    limit,
+    offset,
+    has_more: offset + runs.length < rankedCount,
     source: "bench-loop.com public submissions",
     runs,
   }, 200, { "Cache-Control": "public, max-age=60" })
@@ -248,7 +319,7 @@ export default {
     try {
       if (url.pathname === "/health") resp = json({ ok: true, ts: new Date().toISOString() })
       else if (url.pathname === "/submit" && request.method === "POST") resp = await handleSubmit(request, env)
-      else if (url.pathname === "/leaderboard") resp = await handleLeaderboard(env)
+      else if (url.pathname === "/leaderboard") resp = await handleLeaderboard(request, env)
       else if (url.pathname.startsWith("/runs/")) resp = await handleRun(decodeURIComponent(url.pathname.slice(6)), env)
       else resp = json({ error: "not found", routes: ["/health", "POST /submit", "/leaderboard", "/runs/:id"] }, 404)
     } catch (err: any) {

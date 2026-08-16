@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS runs (
   is_quality_full INTEGER DEFAULT 0,
   is_agent_only INTEGER DEFAULT 0,
 
-  suites_json TEXT NOT NULL,          -- {suite_name: {score, pass_count, task_count}}
+  suites_json TEXT NOT NULL,          -- complete local result, including task detail
+  suites_summary_json TEXT NOT NULL DEFAULT '{}', -- public compact suite scores/counts
   submitter_ip TEXT,
   user_agent TEXT
 );
@@ -54,3 +55,4 @@ CREATE INDEX IF NOT EXISTS idx_runs_model ON runs(model);
 CREATE INDEX IF NOT EXISTS idx_runs_overall ON runs(overall_score DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_submitted ON runs(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_runs_full ON runs(is_full_benchmark, overall_score DESC);
+CREATE INDEX IF NOT EXISTS idx_runs_model_harness_score ON runs(model, harness, overall_score DESC, submitted_at DESC);

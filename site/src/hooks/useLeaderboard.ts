@@ -39,6 +39,18 @@ export interface PublicRun {
   suites: Record<string, { score: number; pass_count?: number; task_count?: number }>
 }
 
+export interface LeaderboardMeta {
+  totalCount: number
+  rankedCount: number
+  fullCount: number | null
+  uniqueModels: number | null
+  uniqueMachines: number | null
+  loadedCount: number
+  hasMore: boolean
+  source: string
+  isFallback: boolean
+}
+
 /**
  * Fetch the public leaderboard. Primary source is the Cloudflare Worker at
  * api.bench-loop.com/leaderboard, which is populated by the local BenchLoop
@@ -50,6 +62,17 @@ const FALLBACK_URL = '/data/leaderboard.json'
 
 export function useLeaderboard() {
   const [runs, setRuns] = useState<PublicRun[]>([])
+  const [meta, setMeta] = useState<LeaderboardMeta>({
+    totalCount: 0,
+    rankedCount: 0,
+    fullCount: null,
+    uniqueModels: null,
+    uniqueMachines: null,
+    loadedCount: 0,
+    hasMore: false,
+    source: '',
+    isFallback: false,
+  })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,6 +89,17 @@ export function useLeaderboard() {
             .slice()
             .sort((a: PublicRun, b: PublicRun) => (b.overall_score || 0) - (a.overall_score || 0))
           setRuns(list)
+          setMeta({
+            totalCount: Number(d.total_count ?? d.count ?? list.length),
+            rankedCount: Number(d.ranked_count ?? d.count ?? list.length),
+            fullCount: d.full_count == null ? null : Number(d.full_count),
+            uniqueModels: d.unique_models == null ? null : Number(d.unique_models),
+            uniqueMachines: d.unique_machines == null ? null : Number(d.unique_machines),
+            loadedCount: list.length,
+            hasMore: Boolean(d.has_more),
+            source: String(d.source || ''),
+            isFallback: url === FALLBACK_URL,
+          })
           return
         } catch {
           /* try next */
@@ -82,5 +116,5 @@ export function useLeaderboard() {
     }
   }, [])
 
-  return { runs, loading, error }
+  return { runs, meta, loading, error }
 }

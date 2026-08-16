@@ -47,7 +47,7 @@ function bestRun(runs: PublicRun[], mode: RankMode, qualityFloor = 0): PublicRun
 }
 
 export default function LeaderboardPage() {
-  const { runs, loading, error } = useLeaderboard()
+  const { runs, meta, loading, error } = useLeaderboard()
   const [mode, setMode] = useState<RankMode>('overall')
   const [search, setSearch] = useState('')
   const [scope, setScope] = useState<'full' | 'all'>('all')
@@ -146,15 +146,15 @@ export default function LeaderboardPage() {
   }, [runs])
 
   const stats = useMemo(() => {
-    const totalRuns = runs.length
-    const fullRuns = runs.filter((r) => r.is_full_benchmark).length
-    const uniqueModels = new Set(runs.map((r) => r.model)).size
-    const uniqueMachines = new Set(runs.map((r) => normalizedHardwareLabel(r)).filter((m) => m && m !== 'unknown hardware')).size
+    const totalRuns = meta.totalCount || runs.length
+    const fullRuns = meta.fullCount ?? runs.filter((r) => r.is_full_benchmark).length
+    const uniqueModels = meta.uniqueModels ?? new Set(runs.map((r) => r.model)).size
+    const uniqueMachines = meta.uniqueMachines ?? new Set(runs.map((r) => normalizedHardwareLabel(r)).filter((m) => m && m !== 'unknown hardware')).size
     const bestOverall = bestRun(runs, 'overall', qualityFloor)
     const fastestUsable = bestRun(runs, 'tok_per_sec', qualityFloor)
     const bestAgent = bestRun(runs, 'agent', qualityFloor)
     return { totalRuns, fullRuns, uniqueModels, uniqueMachines, bestOverall, fastestUsable, bestAgent }
-  }, [runs, qualityFloor])
+  }, [runs, meta, qualityFloor])
 
   const activeFilterChips = useMemo(() => {
     const chips: string[] = []
@@ -170,7 +170,7 @@ export default function LeaderboardPage() {
   }, [scope, harnessFilter, providerFilter, hardwareFilter, publisherFilter, qualityFloor, remoteFilter, search])
 
   const filteredCount = ranked.length
-  const totalCount = runs.length
+  const rankedCount = meta.rankedCount || runs.length
 
   return (
     <div>
@@ -183,7 +183,7 @@ export default function LeaderboardPage() {
       {!loading && !error && runs.length > 0 && (
         <>
           <div className="metric-grid metric-grid-tight" style={{ marginTop: 18, marginBottom: 18 }}>
-            <Stat label="Published runs" value={String(stats.totalRuns)} />
+            <Stat label="Submitted runs" value={stats.totalRuns.toLocaleString()} />
             <Stat label="Full benchmarks" value={String(stats.fullRuns)} />
             <Stat label="Unique models" value={String(stats.uniqueModels)} />
             <Stat label="Unique machines" value={String(stats.uniqueMachines)} />
@@ -305,7 +305,9 @@ export default function LeaderboardPage() {
           <div className="lb-filters-info">
             <span className="page-kicker lb-kicker">Quality-aware ranking</span>
             <span className="lb-filter-summary">
-              Showing <strong>{filteredCount}</strong> of <strong>{totalCount}</strong> published runs
+              Showing <strong>{filteredCount.toLocaleString()}</strong> of <strong>{rankedCount.toLocaleString()}</strong> ranked configurations
+              {' · '}<strong>{stats.totalRuns.toLocaleString()}</strong> submitted runs total
+              {meta.isFallback ? ' · cached snapshot' : ''}
             </span>
           </div>
           {activeFilterChips.length > 0 && (
