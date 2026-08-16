@@ -1,4 +1,4 @@
-import { getViewer, type Viewer } from "./auth"
+import { getViewer, syncProviderProfile, type Viewer } from "./auth"
 
 const MAX_BODY_BYTES = 32_768
 
@@ -104,16 +104,50 @@ async function handleConfig(env: Env): Promise<Response> {
 }
 
 async function handleMe(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-  const viewer = await optionalViewer(request, env, ctx)
+  let viewer = await optionalViewer(request, env, ctx)
   if (!viewer) return json({ user: null, profile: null, providers: [] })
   const accounts = await env.DB.prepare(
     "SELECT providerId FROM auth_accounts WHERE userId = ? ORDER BY createdAt",
   ).bind(viewer.user.id).all<{ providerId: string }>()
+  const providerIds = accounts.results.map((account) => account.providerId)
+  const providerToSync = providerIds.includes("github") && !viewer.profile.githubUrl
+    ? "github"
+    : providerIds.includes("twitter") && !viewer.profile.xUrl ? "twitter" : null
+  if (providerToSync) {
+    try {
+      const profile = await syncProviderProfile(request, env, ctx, providerToSync)
+      viewer = { ...viewer, profile }
+    } catch (error) {
+      console.error(JSON.stringify({
+        message: "provider_profile_sync_failed",
+        provider: providerToSync,
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    }
+  }
   return json({
     user: viewer.user,
     profile: viewer.profile,
-    providers: accounts.results.map((account) => account.providerId),
+    providers: providerIds,
   })
+}
+
+async function syncProfileProvider(
+  request: Request,
+  provider: string,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
+  if (provider !== "github" && provider !== "twitter") return json({ error: "invalid_provider" }, 400)
+  try {
+    const profile = await syncProviderProfile(request, env, ctx, provider)
+    return json({ ok: true, profile })
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "provider_sync_failed"
+    if (code === "authentication_required") return json({ error: code }, 401)
+    console.error(JSON.stringify({ message: "provider_profile_sync_failed", provider, error: code }))
+    return json({ error: "provider_sync_failed" }, 502)
+  }
 }
 
 async function updateProfile(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -379,6 +413,9 @@ export async function handleCommunity(request: Request, env: Env, ctx: Execution
   if (url.pathname === "/account/config" && request.method === "GET") return handleConfig(env)
   if (url.pathname === "/account/me" && request.method === "GET") return handleMe(request, env, ctx)
   if (url.pathname === "/account/profile" && request.method === "PATCH") return updateProfile(request, env, ctx)
+  if (segments[0] === "account" && segments[1] === "sync" && segments[2] && request.method === "POST") {
+    return syncProfileProvider(request, decodeURIComponent(segments[2]), env, ctx)
+  }
   if (url.pathname === "/account/rigs" && request.method === "GET") return listRigs(request, env, ctx)
   if (url.pathname === "/account/rigs" && request.method === "POST") return createRig(request, env, ctx)
   if (url.pathname === "/community/feed" && request.method === "GET") return loadFeed(request, env, ctx)

@@ -111,6 +111,20 @@ export default function AccountPage() {
     }
   }
 
+  const syncProvider = async (provider: AuthProviderId) => {
+    setBusy(`sync-${provider}`)
+    setNotice(null)
+    try {
+      await apiFetch(`/account/sync/${provider}`, { method: 'POST' })
+      await refreshAccount()
+      setNotice(`${provider === 'github' ? 'GitHub' : 'X'} profile details synced.`)
+    } catch (cause) {
+      setNotice(cause instanceof Error ? cause.message : 'Provider profile could not be synced.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const revoke = async (runner: Runner) => {
     setBusy(`runner-${runner.id}`)
     try {
@@ -170,7 +184,14 @@ export default function AccountPage() {
               <div className="account-provider" key={provider}>
                 <BrandIcon brand={provider === 'twitter' ? 'x' : 'github'} size={22} />
                 <span><strong>{provider === 'twitter' ? 'X' : 'GitHub'}</strong><small>{linked ? 'Linked to this profile' : enabled ? 'Available to link' : 'OAuth app pending'}</small></span>
-                <button type="button" className="btn btn-secondary" disabled={linked || !enabled || busy !== null} onClick={() => void connectProvider(provider)}>{linked ? 'Linked' : 'Link'}</button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!enabled || busy !== null}
+                  onClick={() => void (linked ? syncProvider(provider) : connectProvider(provider))}
+                >
+                  {busy === `sync-${provider}` ? 'Syncing…' : linked ? 'Sync' : 'Link'}
+                </button>
               </div>
             )
           })}

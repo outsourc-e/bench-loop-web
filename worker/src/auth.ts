@@ -38,7 +38,7 @@ export function authAvailable(env: Env): boolean {
   return Boolean(env.BETTER_AUTH_SECRET?.trim() && env.BETTER_AUTH_SECRET.length >= 32)
 }
 
-function profileFromRow(row: Record<string, unknown>): ViewerProfile {
+export function profileFromRow(row: Record<string, unknown>): ViewerProfile {
   return {
     id: String(row.id),
     handle: String(row.handle),
@@ -132,6 +132,8 @@ export function createAuth(env: Env, ctx?: ExecutionContext) {
       accountLinking: {
         enabled: true,
         updateUserInfoOnLink: true,
+        allowDifferentEmails: true,
+        trustedProviders: ["github", "twitter"],
       },
     },
     user: { modelName: "auth_users" },
@@ -177,4 +179,120 @@ export async function getViewer(request: Request, env: Env, ctx?: ExecutionConte
     },
     profile,
   }
+}
+
+type GithubProfile = {
+  login?: string
+  avatar_url?: string
+  html_url?: string
+  bio?: string | null
+  blog?: string | null
+  twitter_username?: string | null
+}
+
+type TwitterProfile = {
+  data?: {
+    username?: string
+    profile_image_url?: string
+    description?: string
+    url?: string
+  }
+}
+
+function safeProfileUrl(value: string | null | undefined): string | null {
+  const text = value?.trim()
+  if (!text) return null
+  try {
+    const parsed = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`)
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.toString() : null
+  } catch {
+    return null
+  }
+}
+
+async function updatedProfile(db: D1Database, userId: string): Promise<ViewerProfile> {
+  const row = await db.prepare(
+    `SELECT id, handle, display_name, bio, avatar_url, github_url, x_url,
+            website_url, onboarding_complete
+       FROM profiles WHERE id = ?`,
+  ).bind(userId).first<Record<string, unknown>>()
+  if (!row) throw new Error("profile_not_found")
+  return profileFromRow(row)
+}
+
+export async function syncProviderProfile(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  providerId: "github" | "twitter",
+): Promise<ViewerProfile> {
+  const viewer = await getViewer(request, env, ctx)
+  if (!viewer) throw new Error("authentication_required")
+  const auth = createAuth(env, ctx)
+  const token = await auth.api.getAccessToken({
+    headers: request.headers,
+    body: { providerId },
+  })
+
+  if (providerId === "github") {
+    const response = await fetch("https://api.github.com/user", {
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": `Bearer ${token.accessToken}`,
+        "User-Agent": "BenchLoop-Profile-Sync",
+      },
+    })
+    if (!response.ok) throw new Error("github_profile_unavailable")
+    const github = await response.json<GithubProfile>()
+    const login = github.login?.trim()
+    const githubUrl = safeProfileUrl(github.html_url || (login ? `https://github.com/${login}` : null))
+    if (!githubUrl) throw new Error("github_profile_invalid")
+    const xUrl = github.twitter_username?.trim()
+      ? `https://x.com/${encodeURIComponent(github.twitter_username.trim().replace(/^@/, ""))}`
+      : null
+    await env.DB.prepare(
+      `UPDATE profiles SET
+         github_url = ?,
+         avatar_url = CASE WHEN COALESCE(avatar_url, '') = '' THEN ? ELSE avatar_url END,
+         bio = CASE WHEN bio = '' THEN COALESCE(?, bio) ELSE bio END,
+         website_url = CASE WHEN COALESCE(website_url, '') = '' THEN ? ELSE website_url END,
+         x_url = CASE WHEN COALESCE(x_url, '') = '' THEN ? ELSE x_url END,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+    ).bind(
+      githubUrl,
+      safeProfileUrl(github.avatar_url),
+      github.bio?.trim().slice(0, 500) || null,
+      safeProfileUrl(github.blog),
+      xUrl,
+      viewer.profile.id,
+    ).run()
+  } else {
+    const response = await fetch(
+      "https://api.x.com/2/users/me?user.fields=profile_image_url,description,url",
+      { headers: { "Authorization": `Bearer ${token.accessToken}` } },
+    )
+    if (!response.ok) throw new Error("x_profile_unavailable")
+    const twitter = await response.json<TwitterProfile>()
+    const profile = twitter.data
+    const username = profile?.username?.trim().replace(/^@/, "")
+    if (!username) throw new Error("x_profile_invalid")
+    await env.DB.prepare(
+      `UPDATE profiles SET
+         x_url = ?,
+         avatar_url = CASE WHEN COALESCE(avatar_url, '') = '' THEN ? ELSE avatar_url END,
+         bio = CASE WHEN bio = '' THEN COALESCE(?, bio) ELSE bio END,
+         website_url = CASE WHEN COALESCE(website_url, '') = '' THEN ? ELSE website_url END,
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+    ).bind(
+      `https://x.com/${encodeURIComponent(username)}`,
+      safeProfileUrl(profile?.profile_image_url),
+      profile?.description?.trim().slice(0, 500) || null,
+      safeProfileUrl(profile?.url),
+      viewer.profile.id,
+    ).run()
+  }
+
+  return updatedProfile(env.DB, viewer.profile.id)
 }
