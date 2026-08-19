@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useRuns } from '../hooks/useApi'
+import { deleteRun, useRuns } from '../hooks/useApi'
 import ScoreBadge from '../components/ScoreBadge'
 
 // "Full" = at least these quality suites + speed. Coding is optional bonus.
@@ -71,6 +71,8 @@ export default function LeaderboardTab() {
   const [providerFilter, setProviderFilter] = useState<string>('all')
   const [harnessFilter, setHarnessFilter] = useState<string>('all')
   const [rankMode, setRankMode] = useState<RankMode>('overall')
+  const [deletingRunId, setDeletingRunId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const scoreOf = (r: RunRow): number => {
     switch (rankMode) {
@@ -109,6 +111,22 @@ export default function LeaderboardTab() {
   const speedAtCapCount = filtered.filter((r) => (r.speed_score || 0) >= 99.9).length
   const totalRuns = ranked.length
   const filteredPartialCount = ranked.length - ranked.filter(isFullRun).length
+
+  const handleDelete = async (run: RunRow) => {
+    const ok = window.confirm(`Delete local run ${run.id}? This cannot be undone.`)
+    if (!ok) return
+
+    setDeletingRunId(run.id)
+    setDeleteError(null)
+    try {
+      await deleteRun(run.id)
+      refresh()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete run')
+    } finally {
+      setDeletingRunId(null)
+    }
+  }
 
   return (
     <div>
@@ -273,6 +291,21 @@ export default function LeaderboardTab() {
           ⚠️ {speedAtCapCount} runs have speed score at the 100 ceiling. Switch to "Raw tok/s" to see actual speed differences.
         </div>
       )}
+      {deleteError && (
+        <div
+          style={{
+            background: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.3)',
+            color: '#ff8888',
+            padding: '8px 12px',
+            borderRadius: 6,
+            fontSize: '0.78rem',
+            marginBottom: 12,
+          }}
+        >
+          {deleteError}
+        </div>
+      )}
 
       {!loading && filtered.length === 0 && (
         <div className="empty-state">
@@ -362,12 +395,31 @@ export default function LeaderboardTab() {
                       {run.total_runtime_sec ? `${run.total_runtime_sec.toFixed(1)}s` : '—'}
                     </td>
                     <td style={{ ...cellStyle, textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                      <Link
-                        to={`/compare?a=${encodeURIComponent(run.id)}`}
-                        style={{ fontSize: '0.72rem', color: 'var(--accent)', textDecoration: 'none', padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4 }}
-                      >
-                        Compare
-                      </Link>
+                      <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+                        <Link
+                          to={`/compare?a=${encodeURIComponent(run.id)}`}
+                          style={{ fontSize: '0.72rem', color: 'var(--accent)', textDecoration: 'none', padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4 }}
+                        >
+                          Compare
+                        </Link>
+                        <button
+                          onClick={() => handleDelete(run)}
+                          disabled={deletingRunId === run.id}
+                          title="Delete this local run"
+                          style={{
+                            fontSize: '0.72rem',
+                            color: '#ff9999',
+                            background: 'rgba(239,68,68,0.06)',
+                            padding: '4px 8px',
+                            border: '1px solid rgba(239,68,68,0.35)',
+                            borderRadius: 4,
+                            cursor: deletingRunId === run.id ? 'not-allowed' : 'pointer',
+                            opacity: deletingRunId === run.id ? 0.6 : 1,
+                          }}
+                        >
+                          {deletingRunId === run.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
